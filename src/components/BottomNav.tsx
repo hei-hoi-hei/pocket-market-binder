@@ -22,8 +22,8 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-leather-800/95 backdrop-blur-md border-t border-leather-600 safe-bottom">
-      <div className="mx-auto max-w-md flex items-stretch justify-around px-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-leather-800/95 backdrop-blur-md border-t border-leather-600 safe-bottom lg:hidden">
+      <div className="mx-auto max-w-md md:max-w-3xl lg:max-w-5xl flex items-stretch justify-around px-2">
         {ITEMS.map(({ id, label, icon: Icon }) => {
           const active = screen === id;
           const badge = badgeFor(id);

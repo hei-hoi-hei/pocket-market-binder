@@ -44,7 +44,7 @@ export function SearchScreen() {
   return (
     <div className="animate-fade-in">
       <ScreenHeader title="Search" icon={<SearchIcon className="w-7 h-7 text-leather-600" />}>
-        <p className="text-sm text-leather-500">Browse the mock card catalog.</p>
+        <p className="text-sm text-leather-500">Find cards to add to your collection.</p>
       </ScreenHeader>
 
       {/* Search bar */}
@@ -88,61 +88,65 @@ export function SearchScreen() {
 
       {/* Filter panel */}
       {showFilters && (
-        <div className="bg-white rounded-xl p-3 shadow-sm border border-parchment-200 mb-4 animate-scale-in space-y-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-leather-500 mb-1.5">Energy Type</p>
-            <div className="flex gap-1.5 flex-wrap">
-              {TYPE_OPTIONS.map((et) => {
-                const isAll = et === 'all';
-                const style = !isAll ? ENERGY_STYLES[et] : null;
-    const active = energy === et;
-    return (
-      <button
-        key={et}
-        onClick={() => setEnergy(et)}
-        className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize transition-all active:scale-95 ${
-          active
-            ? isAll
-              ? 'bg-leather-700 text-white'
-              : `${style!.bg} ${style!.text} ring-2 ring-offset-1 ring-leather-400`
-            : 'bg-parchment-200 text-leather-600 hover:bg-parchment-300'
-        }`}
-      >
-        {isAll ? 'All' : style!.label}
-      </button>
-    );
-              })}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-parchment-200 mb-6 animate-scale-in space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-leather-500 mb-2">Energy Type</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {TYPE_OPTIONS.map((et) => {
+                  const isAll = et === 'all';
+                  const style = !isAll ? ENERGY_STYLES[et] : null;
+                  const active = energy === et;
+                  return (
+                    <button
+                      key={et}
+                      onClick={() => setEnergy(et)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize transition-all active:scale-95 ${
+                        active
+                          ? isAll
+                            ? 'bg-leather-700 text-white'
+                            : `${style!.bg} ${style!.text} ring-2 ring-offset-1 ring-leather-400`
+                          : 'bg-parchment-200 text-leather-600 hover:bg-parchment-300'
+                      }`}
+                    >
+                      {isAll ? 'All' : style!.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-leather-500 mb-1.5">Rarity</p>
-            <div className="flex gap-1.5 flex-wrap">
-              {RARITY_OPTIONS.map((r) => {
-                const isAll = r === 'all';
-                const style = !isAll ? RARITY_STYLES[r] : null;
-    const active = rarity === r;
-    return (
-      <button
-        key={r}
-        onClick={() => setRarity(r)}
-        className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all active:scale-95 ${
-          active
-            ? isAll
-              ? 'bg-leather-700 text-white'
-              : `${style!.badge} ring-2 ring-offset-1 ring-leather-400`
-            : 'bg-parchment-200 text-leather-600 hover:bg-parchment-300'
-        }`}
-      >
-        {isAll ? 'All' : rarityLabel(r)}
-      </button>
-    );
-              })}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-leather-500 mb-2">Rarity</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {RARITY_OPTIONS.map((r) => {
+                  const isAll = r === 'all';
+                  const style = !isAll ? RARITY_STYLES[r] : null;
+                  const active = rarity === r;
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setRarity(r)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all active:scale-95 ${
+                        active
+                          ? isAll
+                            ? 'bg-leather-700 text-white'
+                            : `${style!.badge} ring-2 ring-offset-1 ring-leather-400`
+                          : 'bg-parchment-200 text-leather-600 hover:bg-parchment-300'
+                      }`}
+                    >
+                      {isAll ? 'All' : rarityLabel(r)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="text-xs font-semibold text-fire-500 hover:underline">
-              Clear filters
-            </button>
+            <div className="pt-2 border-t border-parchment-200">
+              <button onClick={clearFilters} className="text-xs font-semibold text-fire-500 hover:underline">
+                Clear filters
+              </button>
+            </div>
           )}
         </div>
       )}

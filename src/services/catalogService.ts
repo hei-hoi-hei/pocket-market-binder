@@ -1,6 +1,5 @@
 import type { Card } from '@/types';
 import { storage } from './storage';
-import { MOCK_CATALOG } from '@/data/mockCatalog';
 import { tcgdexProvider } from './providers/tcgdexProvider';
 
 export interface CatalogFilters {
@@ -37,17 +36,20 @@ class HybridCatalogService implements CatalogService {
     if (this.initialized) return;
     this.initialized = true;
 
-    // Seed memory cache with mock cards
-    for (const card of MOCK_CATALOG) {
-      this.memoryCache.set(card.id, card);
-    }
-
     // Load previously cached cards from IndexedDB
     try {
       const persisted = await storage.get<Card[]>(CACHED_CARDS_KEY);
       if (persisted && Array.isArray(persisted)) {
-        for (const card of persisted) {
+        // Purge stale mock cards (IDs starting with PM-)
+        const clean = persisted.filter((card) => !card.id.startsWith('PM-'));
+        
+        for (const card of clean) {
           this.memoryCache.set(card.id, card);
+        }
+
+        // If mock records were removed, persist the cleaned catalog back
+        if (clean.length !== persisted.length) {
+          await storage.set(CACHED_CARDS_KEY, clean);
         }
       }
     } catch {
@@ -67,6 +69,14 @@ class HybridCatalogService implements CatalogService {
 
   async getAll(): Promise<Card[]> {
     await this.ensureInitialized();
+    if (this.memoryCache.size === 0 && navigator.onLine) {
+      try {
+        const remoteCards = await tcgdexProvider.searchCards('');
+        for (const card of remoteCards) {
+          this.memoryCache.set(card.id, card);
+        }
+      } catch {}
+    }
     return Array.from(this.memoryCache.values());
   }
 
@@ -94,10 +104,10 @@ class HybridCatalogService implements CatalogService {
   async search(filters: CatalogFilters): Promise<Card[]> {
     await this.ensureInitialized();
 
-    // Attempt remote search if online and query exists
-    if (navigator.onLine && filters.query && filters.query.trim().length >= 2) {
+    // Attempt remote search / fetch if online
+    if (navigator.onLine) {
       try {
-        const remoteCards = await tcgdexProvider.searchCards(filters.query);
+        const remoteCards = await tcgdexProvider.searchCards(filters.query || '');
         // Persist newly discovered cards
         for (const card of remoteCards) {
           if (!this.memoryCache.has(card.id)) {
@@ -107,7 +117,7 @@ class HybridCatalogService implements CatalogService {
         // Save batch to IndexedDB non-blocking
         storage.set(CACHED_CARDS_KEY, Array.from(this.memoryCache.values())).catch(() => {});
       } catch {
-        // Offline or API error, gracefully fall back to local
+        // Offline or API error, gracefully fall back to local cache
       }
     }
 
@@ -129,4 +139,3 @@ class HybridCatalogService implements CatalogService {
 }
 
 export const catalogService: CatalogService = new HybridCatalogService();
-

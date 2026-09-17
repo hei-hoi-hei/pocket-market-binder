@@ -60,13 +60,11 @@ export function HomeScreen() {
       {/* Stats */}
       {stats && (
         <section>
-          <h3 className="text-sm font-bold uppercase tracking-wide text-leather-500 mb-2">Collection at a Glance</h3>
-          <div className="grid grid-cols-3 gap-2.5">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-leather-500 mb-2.5">Collection at a Glance</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <StatCard label="Unique" value={stats.uniqueCards} icon={Layers} accent="text-water-500" />
             <StatCard label="Total" value={stats.totalCards} icon={BookOpen} accent="text-grass-500" />
             <StatCard label="Value" value={formatPrice(stats.collectionValue)} icon={Coins} accent="text-gold-500" sub="Reference" />
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 mt-2.5">
             <StatCard label="Wishlist" value={stats.wishlistCount} icon={Heart} accent="text-psychic-500" />
             <StatCard label="In Cart" value={stats.cartCount} icon={ShoppingCart} accent="text-fire-500" />
           </div>
@@ -122,11 +120,18 @@ export function HomeScreen() {
           <h3 className="text-sm font-bold uppercase tracking-wide text-leather-500">Featured Cards</h3>
           <button onClick={() => go('search')} className="text-xs font-semibold text-gold-600 hover:underline">Browse all</button>
         </div>
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1">
+        {/* Mobile horizontal scroll */}
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1 lg:hidden">
           {featured.map((card) => (
             <div key={card.id} className="flex-shrink-0 w-32">
               <CardThumb card={card} showWishlist />
             </div>
+          ))}
+        </div>
+        {/* Desktop grid */}
+        <div className="hidden lg:grid grid-cols-6 gap-4">
+          {featured.map((card) => (
+            <CardThumb key={card.id} card={card} showWishlist />
           ))}
         </div>
       </section>

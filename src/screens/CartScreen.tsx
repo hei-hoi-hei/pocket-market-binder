@@ -104,9 +104,9 @@ export function CartScreen() {
           </button>
         </div>
       ) : (
-        <>
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Line items */}
-          <div className="space-y-3 mb-4">
+          <div className="flex-1 w-full space-y-3">
             {lines.map(({ cardId, card, quantity, sellerPrice }) => {
               const style = getCardTypeStyle(card);
               const lineTotal = sellerPrice !== null ? sellerPrice * quantity : null;
@@ -205,7 +205,7 @@ export function CartScreen() {
           </div>
 
           {/* Summary */}
-          <div className="bg-leather-800 text-white rounded-xl p-4 shadow-card space-y-3 sticky bottom-16">
+          <div className="w-full lg:w-80 bg-leather-800 text-white rounded-xl p-5 shadow-card space-y-4 sticky bottom-20 lg:bottom-auto lg:top-24 flex-shrink-0">
             <h3 className="font-display text-lg text-gold-400">Cart Summary</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -216,13 +216,13 @@ export function CartScreen() {
                 <span className="text-parchment-200">Seller Total ({pricedLinesCount}/{lines.length} priced)</span>
                 <span className="font-display text-xl text-gold-400 tabular-nums">{formatPrice(sellerTotal)}</span>
               </div>
-              <p className="text-xs text-parchment-300 pt-1 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-grass-400" />
+              <p className="text-xs text-parchment-300 pt-1 flex items-center gap-1.5 leading-relaxed">
+                <CheckCircle2 className="w-4 h-4 text-grass-400 flex-shrink-0" />
                 Track offers from local or online card shops.
               </p>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

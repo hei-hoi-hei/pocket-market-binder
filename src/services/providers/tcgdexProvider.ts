@@ -67,15 +67,15 @@ export class TCGdexProvider implements CatalogProvider {
 
   async searchCards(query: string): Promise<Card[]> {
     const trimmed = query.trim();
-    if (!trimmed) return [];
     try {
-      const res = await fetch(`${this.baseUrl}/cards?name=${encodeURIComponent(trimmed)}`);
+      const url = trimmed
+        ? `${this.baseUrl}/cards?name=${encodeURIComponent(trimmed)}`
+        : `${this.baseUrl}/cards`;
+      const res = await fetch(url);
       if (!res.ok) return [];
       const list = await res.json();
       if (!Array.isArray(list)) return [];
 
-      // TCGdex search returns an array of brief card descriptors: { id, localId, name, image }
-      // Map these to lightweight Cards
       return list.slice(0, 30).map((item: any) => ({
         id: item.id,
         name: item.name,
