@@ -4,7 +4,6 @@ import type {
   CollectionStats,
   OwnedCard,
   Rarity,
-  EnergyType,
   WishlistEntry,
 } from '@/types';
 import { storage } from './storage';
@@ -69,13 +68,14 @@ export async function removeFromBinder(cardId: string): Promise<BinderEntry[]> {
 
 export async function getOwnedCards(): Promise<OwnedCard[]> {
   const entries = await getBinder();
-  return entries
-    .map((e) => {
-      const card = catalogService.getById(e.cardId);
-      return card ? { card, quantity: e.quantity } : null;
-    })
-    .filter((o): o is OwnedCard => o !== null)
-    .sort((a, b) => a.card.name.localeCompare(b.card.name));
+  const ownedCards: OwnedCard[] = [];
+  for (const e of entries) {
+    const card = await catalogService.getById(e.cardId);
+    if (card) {
+      ownedCards.push({ card, quantity: e.quantity });
+    }
+  }
+  return ownedCards.sort((a, b) => a.card.name.localeCompare(b.card.name));
 }
 
 // ── Wishlist ─────────────────────────────────────────────────────────────────
@@ -146,30 +146,26 @@ export async function clearCart(): Promise<void> {
 
 // ── Statistics ─────────────────────────────────────────────────────────────────
 
-const RARITIES: Rarity[] = ['common', 'uncommon', 'rare', 'holo', 'ultra'];
+const RARITIES: Rarity[] = ['common', 'uncommon', 'rare', 'holo', 'ultra', 'secret', 'other'];
 
 export async function getCollectionStats(): Promise<CollectionStats> {
   const [owned, wishlist, cart] = await Promise.all([getOwnedCards(), getWishlist(), getCart()]);
   const byRarity = {} as Record<Rarity, number>;
   for (const r of RARITIES) byRarity[r] = 0;
-  const byEnergy = {} as Partial<Record<EnergyType, number>>;
 
   let totalCards = 0;
-  let collectionValue = 0;
   for (const { card, quantity } of owned) {
     totalCards += quantity;
-    collectionValue += card.refPrice * quantity;
     byRarity[card.rarity] = (byRarity[card.rarity] ?? 0) + quantity;
-    byEnergy[card.energyType] = (byEnergy[card.energyType] ?? 0) + quantity;
   }
 
   return {
     uniqueCards: owned.length,
     totalCards,
-    collectionValue,
+    collectionValue: 0,
     byRarity,
-    byEnergy,
     wishlistCount: wishlist.length,
     cartCount: cart.length,
   };
 }
+

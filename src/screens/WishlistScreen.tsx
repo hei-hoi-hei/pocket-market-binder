@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import { Heart, Search } from 'lucide-react';
+import type { Card } from '@/types';
 import { useCollection } from '@/context/CollectionContext';
 import { useNav } from '@/context/NavContext';
 import { catalogService } from '@/services/catalogService';
@@ -8,10 +10,28 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 export function WishlistScreen() {
   const { wishlist } = useCollection();
   const { go } = useNav();
-  const cards = wishlist
-    .map((e) => catalogService.getById(e.cardId))
-    .filter((c): c is NonNullable<typeof c> => c !== undefined)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const [cards, setCards] = useState<Card[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const resolved: Card[] = [];
+      for (const entry of wishlist) {
+        const card = await catalogService.getById(entry.cardId);
+        if (card) resolved.push(card);
+      }
+      resolved.sort((a, b) => a.name.localeCompare(b.name));
+      if (active) {
+        setCards(resolved);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [wishlist]);
 
   return (
     <div className="animate-fade-in">

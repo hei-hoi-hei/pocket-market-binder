@@ -1,16 +1,30 @@
+import { useState, useEffect } from 'react';
 import { Sparkles, BookOpen, Search, Heart, ShoppingCart, TrendingUp, Layers, Coins } from 'lucide-react';
+import type { Card } from '@/types';
 import { useNav } from '@/context/NavContext';
 import { useCollection } from '@/context/CollectionContext';
 import { catalogService } from '@/services/catalogService';
 import { CardThumb } from '@/components/CardThumb';
 import { StatCard } from '@/components/StatCard';
 import { formatPrice, ENERGY_STYLES } from '@/utils/format';
-import type { EnergyType } from '@/types';
 
 export function HomeScreen() {
   const { go } = useNav();
   const { stats, ownedCards } = useCollection();
-  const featured = catalogService.getAll().slice(0, 6);
+  const [featured, setFeatured] = useState<Card[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    catalogService.getAll().then((cards) => {
+      if (active) {
+        setFeatured(cards.slice(0, 6));
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const recent = ownedCards.slice(-4).reverse();
 
   return (
@@ -121,7 +135,7 @@ export function HomeScreen() {
       <section>
         <h3 className="text-sm font-bold uppercase tracking-wide text-leather-500 mb-2">Explore by Energy</h3>
         <div className="flex gap-2 flex-wrap">
-          {(Object.keys(ENERGY_STYLES) as EnergyType[]).map((et) => {
+          {Object.keys(ENERGY_STYLES).map((et) => {
             const style = ENERGY_STYLES[et];
             return (
               <button

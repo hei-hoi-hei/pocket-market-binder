@@ -1,6 +1,6 @@
 import type { Card } from '@/types';
 import { CardArtwork } from './CardArtwork';
-import { ENERGY_STYLES, RARITY_STYLES, rarityLabel } from '@/utils/format';
+import { getCardTypeStyle, RARITY_STYLES, rarityLabel } from '@/utils/format';
 import { useCollection } from '@/context/CollectionContext';
 import { useNav } from '@/context/NavContext';
 import { Heart, CheckCircle2, Star } from 'lucide-react';
@@ -23,7 +23,7 @@ export function CardThumb({ card, showOwned = true, showWishlist = false, classN
   const { go } = useNav();
   const qty = getQuantity(card.id);
   const wished = isInWishlist(card.id);
-  const style = ENERGY_STYLES[card.energyType];
+  const style = getCardTypeStyle(card);
   const rarity = RARITY_STYLES[card.rarity];
 
   return (
@@ -35,7 +35,7 @@ export function CardThumb({ card, showOwned = true, showWishlist = false, classN
     >
       <CardArtwork card={card} className="aspect-[3/4] w-full" />
 
-      {/* Energy type strip */}
+      {/* Type strip */}
       <div className={`absolute left-0 top-0 ${style.bg} ${style.text} px-1.5 py-0.5 rounded-bl-lg text-[10px] font-bold uppercase tracking-wide`}>
         {style.label}
       </div>
@@ -69,3 +69,4 @@ export function CardThumb({ card, showOwned = true, showWishlist = false, classN
     </button>
   );
 }
+

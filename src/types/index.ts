@@ -1,48 +1,43 @@
 // Core domain types for Pocket Market Binder.
 // Kept framework-agnostic so UI, service, and data layers can all import them.
 
-export type EnergyType =
-  | 'fire'
-  | 'water'
-  | 'grass'
-  | 'electric'
-  | 'psychic'
-  | 'dark'
-  | 'steel'
-  | 'dragon';
+export type CardCategory = 'pokemon' | 'trainer' | 'energy';
 
-export type Rarity = 'common' | 'uncommon' | 'rare' | 'holo' | 'ultra';
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'holo' | 'ultra' | 'secret' | 'other';
 
-/** A single card in the mock catalog. */
-export interface Card {
-  id: string;
-  name: string;
-  /** Original creature genus label, e.g. "Flame Lizard". */
-  genus: string;
-  energyType: EnergyType;
-  rarity: Rarity;
-  setCode: string;
-  setNumber: string;
-  /** Reference / market price in USD (mock). */
-  refPrice: number;
-  hp: number;
-  /** Evolves-from label, or null if basic. */
-  evolvesFrom?: string | null;
-  /** Mock attack entries. */
-  attacks: CardAttack[];
-  /** Flavor text — original, not copyrighted. */
-  flavor: string;
-  /** Stable seed used to generate the placeholder artwork gradient. */
-  artSeed: number;
-  /** Year of the (fictional) print. */
-  year: number;
+export interface CardVariants {
+  normal?: boolean;
+  reverse?: boolean;
+  holo?: boolean;
+  firstEdition?: boolean;
 }
 
 export interface CardAttack {
   name: string;
-  damage: number;
-  energyCost: EnergyType[];
-  text: string;
+  damage?: string | number;
+  energyCost?: string[];
+  text?: string;
+}
+
+/** Provider-agnostic normalized Card model. */
+export interface Card {
+  id: string;
+  name: string;
+  category: CardCategory;
+  types?: string[];
+  rarity: Rarity;
+  setCode: string;
+  setName?: string;
+  setNumber: string;
+  imageUrlLow?: string;
+  imageUrlHigh?: string;
+  hp?: number;
+  genus?: string;
+  evolvesFrom?: string | null;
+  attacks?: CardAttack[];
+  flavor?: string;
+  variants?: CardVariants;
+  artSeed?: number;
 }
 
 /** An entry in the user's binder (collection). */
@@ -79,7 +74,6 @@ export interface CollectionStats {
   totalCards: number;
   collectionValue: number;
   byRarity: Record<Rarity, number>;
-  byEnergy: Partial<Record<EnergyType, number>>;
   wishlistCount: number;
   cartCount: number;
 }
@@ -91,3 +85,4 @@ export type ScreenId =
   | 'detail'
   | 'wishlist'
   | 'cart';
+

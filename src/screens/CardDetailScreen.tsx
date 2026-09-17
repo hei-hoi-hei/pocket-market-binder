@@ -1,21 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  ArrowLeft, Heart, ShoppingCart, BookOpen, Trash2, Plus, Minus, CheckCircle2, Star, Coins,
+  ArrowLeft, Heart, ShoppingCart, Trash2, Star, Coins, CheckCircle2, BookOpen,
 } from 'lucide-react';
-import type { CartEntry } from '@/types';
+import type { CartEntry, Card } from '@/types';
 import { catalogService } from '@/services/catalogService';
 import { useCollection } from '@/context/CollectionContext';
 import { useNav } from '@/context/NavContext';
 import { CardArtwork } from '@/components/CardArtwork';
-import { EnergyBadge } from '@/components/EnergyBadge';
 import { QuantityStepper } from '@/components/QuantityStepper';
-import { ENERGY_STYLES, RARITY_STYLES, rarityLabel, formatPrice } from '@/utils/format';
+import { RARITY_STYLES, rarityLabel, formatPrice, getCardTypeStyle } from '@/utils/format';
 
 export function CardDetailScreen() {
   const { detailCardId, go } = useNav();
-  const card = detailCardId ? catalogService.getById(detailCardId) : undefined;
   const { getQuantity, setBinderQuantity, addToBinder, isInWishlist, addToWishlist, removeFromWishlist, addToCart, cart } = useCollection();
+  const [card, setCard] = useState<Card | null>(null);
+  const [loading, setLoading] = useState(true);
   const [sellerPrice, setSellerPrice] = useState<string>('');
+
+  useEffect(() => {
+    if (detailCardId) {
+      catalogService.getById(detailCardId).then((c) => {
+        setCard(c ?? null);
+        setLoading(false);
+      });
+    }
+  }, [detailCardId]);
+
+  if (loading) return <div className="p-8 text-center text-leather-500">Loading...</div>;
 
   if (!card) {
     return (
@@ -28,7 +39,7 @@ export function CardDetailScreen() {
 
   const qty = getQuantity(card.id);
   const wished = isInWishlist(card.id);
-  const style = ENERGY_STYLES[card.energyType];
+  const style = getCardTypeStyle(card);
   const rarity = RARITY_STYLES[card.rarity];
   const cartEntry = cart.find((e: CartEntry) => e.cardId === card.id);
   const parsedSeller = sellerPrice !== '' ? parseFloat(sellerPrice) : null;
@@ -66,35 +77,39 @@ export function CardDetailScreen() {
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="bg-white rounded-lg p-2 text-center border border-parchment-200">
               <p className="text-[10px] uppercase font-semibold text-leather-400">HP</p>
-              <p className="font-display text-lg text-leather-800">{card.hp}</p>
-            </div>
-            <div className="bg-white rounded-lg p-2 text-center border border-parchment-200">
-              <p className="text-[10px] uppercase font-semibold text-leather-400">Ref Price</p>
-              <p className="font-display text-lg text-gold-600">{formatPrice(card.refPrice)}</p>
+              <p className="font-display text-lg text-leather-800">{card.hp ?? '-'}</p>
             </div>
             <div className="bg-white rounded-lg p-2 text-center border border-parchment-200">
               <p className="text-[10px] uppercase font-semibold text-leather-400">Set</p>
-              <p className="font-display text-sm text-leather-800">{card.setCode}-{card.setNumber}</p>
+              <p className="font-display text-sm text-leather-800 mt-1 truncate">{card.setName ?? card.setCode}</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 text-center border border-parchment-200">
+              <p className="text-[10px] uppercase font-semibold text-leather-400">Number</p>
+              <p className="font-display text-lg text-leather-800">{card.setNumber}</p>
             </div>
           </div>
 
           {/* Attacks */}
-          <div className="space-y-2 mb-4">
-            {card.attacks.map((atk, i) => (
-              <div key={i} className="bg-white rounded-lg p-3 border border-parchment-200">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5">
-                    {atk.energyCost.map((e, j) => <EnergyBadge key={j} type={e} size="sm" />)}
-                    <span className="font-bold text-sm text-leather-800 ml-1">{atk.name}</span>
+          {card.attacks && card.attacks.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {card.attacks.map((atk, i) => (
+                <div key={i} className="bg-white rounded-lg p-3 border border-parchment-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      {atk.energyCost?.map((e, j) => <span key={j} className="text-xs bg-parchment-200 text-leather-700 px-1.5 py-0.5 rounded font-mono">{e}</span>)}
+                      <span className="font-bold text-sm text-leather-800 ml-1">{atk.name}</span>
+                    </div>
+                    <span className="font-display text-lg text-fire-500">{atk.damage}</span>
                   </div>
-                  <span className="font-display text-lg text-fire-500">{atk.damage}</span>
+                  <p className="text-xs text-leather-500">{atk.text}</p>
                 </div>
-                <p className="text-xs text-leather-500">{atk.text}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          <p className="text-xs text-leather-400 italic mb-4">"{card.flavor}"</p>
+          {card.flavor && (
+            <p className="text-xs text-leather-400 italic mb-4">"{card.flavor}"</p>
+          )}
         </div>
       </div>
 

@@ -1,24 +1,41 @@
-import { useMemo, useState } from 'react';
-import { Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
-import type { EnergyType, Rarity } from '@/types';
+import { useState, useEffect } from 'react';
+import { Search as SearchIcon, SlidersHorizontal, X, Loader2 } from 'lucide-react';
+import type { Card, Rarity } from '@/types';
 import { catalogService } from '@/services/catalogService';
 import type { CatalogFilters } from '@/services/catalogService';
 import { CardGrid } from '@/components/CardGrid';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ENERGY_STYLES, RARITY_STYLES, rarityLabel } from '@/utils/format';
 
-const ENERGY_OPTIONS: (EnergyType | 'all')[] = ['all', 'fire', 'water', 'grass', 'electric', 'psychic', 'dark', 'steel', 'dragon'];
+const TYPE_OPTIONS = ['all', 'fire', 'water', 'grass', 'electric', 'psychic', 'dark', 'steel', 'dragon'];
 const RARITY_OPTIONS: (Rarity | 'all')[] = ['all', 'common', 'uncommon', 'rare', 'holo', 'ultra'];
 
 export function SearchScreen() {
   const [query, setQuery] = useState('');
-  const [energy, setEnergy] = useState<EnergyType | 'all'>('all');
+  const [energy, setEnergy] = useState<string | 'all'>('all');
   const [rarity, setRarity] = useState<Rarity | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [results, setResults] = useState<Card[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const results = useMemo(() => {
-    const filters: CatalogFilters = { query, energyType: energy, rarity };
-    return catalogService.search(filters);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+
+    const timeout = setTimeout(() => {
+      const filters: CatalogFilters = { query, type: energy, rarity };
+      catalogService.search(filters).then((cards) => {
+        if (active) {
+          setResults(cards);
+          setLoading(false);
+        }
+      });
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
   }, [query, energy, rarity]);
 
   const hasActiveFilters = energy !== 'all' || rarity !== 'all';
@@ -63,7 +80,10 @@ export function SearchScreen() {
           Filters
           {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-gold-400" />}
         </button>
-        <span className="text-xs font-semibold text-leather-500">{results.length} result{results.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs font-semibold text-leather-500 flex items-center gap-1">
+          {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-leather-400" />}
+          {results.length} result{results.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
       {/* Filter panel */}
@@ -72,7 +92,7 @@ export function SearchScreen() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-leather-500 mb-1.5">Energy Type</p>
             <div className="flex gap-1.5 flex-wrap">
-              {ENERGY_OPTIONS.map((et) => {
+              {TYPE_OPTIONS.map((et) => {
                 const isAll = et === 'all';
                 const style = !isAll ? ENERGY_STYLES[et] : null;
     const active = energy === et;

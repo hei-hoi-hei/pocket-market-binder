@@ -1,10 +1,9 @@
 import type { Card } from '@/types';
-import { ENERGY_STYLES, seedGradient } from '@/utils/format';
+import { getCardTypeStyle, seedGradient } from '@/utils/format';
 
 interface Props {
   card: Card;
   className?: string;
-  /** When true, the artwork fills the frame without the frame chrome. */
   bare?: boolean;
 }
 
@@ -15,14 +14,15 @@ interface Props {
  * non-infringing visual identity.
  */
 export function CardArtwork({ card, className = '', bare = false }: Props) {
-  const style = ENERGY_STYLES[card.energyType];
-  const [c1, c2] = seedGradient(card.artSeed);
+  const style = getCardTypeStyle(card);
+  const seed = card.artSeed ?? (card.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
+  const [c1, c2] = seedGradient(seed);
 
   // Deterministic silhouette shape from seed
   const blob = (n: number) => {
-    const r = 26 + ((card.artSeed * (n + 1)) % 18);
-    const cx = 32 + ((card.artSeed * (n + 3)) % 36);
-    const cy = 30 + ((card.artSeed * (n + 5)) % 40);
+    const r = 26 + ((seed * (n + 1)) % 18);
+    const cx = 32 + ((seed * (n + 3)) % 36);
+    const cy = 30 + ((seed * (n + 5)) % 40);
     return { r, cx, cy };
   };
   const shapes = [blob(0), blob(1), blob(2)];
@@ -52,7 +52,7 @@ export function CardArtwork({ card, className = '', bare = false }: Props) {
         <circle cx={52} cy={34} r={3.5} fill="rgba(28,58,58,0.85)" />
       </g>
       <rect width="100" height="100" fill={`url(#hl-${card.id})`} />
-      {/* Energy-type symbol in corner */}
+      {/* Type symbol in corner */}
       <g transform="translate(82, 10)">
         <circle r="8" fill="rgba(255,255,255,0.85)" />
         <text x="0" y="3" textAnchor="middle" fontSize="9" fontWeight="bold" fill="currentColor" className={style.text}>
@@ -72,3 +72,4 @@ export function CardArtwork({ card, className = '', bare = false }: Props) {
     </div>
   );
 }
+
