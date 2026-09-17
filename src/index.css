@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-parchment-100 text-leather-800 font-sans antialiased;
+    overscroll-behavior-y: none;
+  }
+  /* Safe-area padding for notched devices */
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@layer components {
+  /* Binder page texture — subtle dotted grid like card sleeves */
+  .binder-bg {
+    background-color: #f7f2e6;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(28, 58, 58, 0.06) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+
+  .card-frame {
+    @apply relative rounded-xl overflow-hidden bg-white shadow-card transition-all duration-200;
+    border: 2px solid theme('colors.parchment.300');
+  }
+  .card-frame:hover {
+    @apply shadow-card-hover -translate-y-0.5;
+  }
+
+  /* Gold binder ring accents */
+  .binder-ring {
+    @apply w-3 h-3 rounded-full bg-gold-500 border-2 border-leather-800;
+  }
+}
+
+/* Hide scrollbars on horizontal rails */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
