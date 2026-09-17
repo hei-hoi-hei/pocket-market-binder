@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Card } from '@/types';
 import { getCardTypeStyle, seedGradient } from '@/utils/format';
+import { artworkService } from '@/services/artworkService';
 
 interface Props {
   card: Card;
@@ -53,9 +54,7 @@ export function CardArtwork({ card, className = '', bare = false, quality = 'low
     </svg>
   );
 
-  const imageUrl = quality === 'high'
-    ? (card.imageUrlHigh || card.imageUrlLow)
-    : (card.imageUrlLow || card.imageUrlHigh);
+  const imageUrl = artworkService.resolve(card, quality);
 
   const content = (imageUrl && !imageFailed) ? (
     <img
