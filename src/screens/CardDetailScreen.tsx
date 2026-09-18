@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import {
   ArrowLeft, Heart, ShoppingCart, Trash2, Star, Coins, CheckCircle2, BookOpen,
 } from 'lucide-react';
+import { PriceConsolidationWidget } from '@/components/PriceConsolidationWidget';
+
 import type { CartEntry, Card } from '@/types';
 import { catalogService } from '@/services/catalogService';
 import { useCollection } from '@/context/CollectionContext';
@@ -175,6 +177,11 @@ export function CardDetailScreen() {
         </div>
 
         {/* Seller price input */}
+        {/* Pricing Widget */}
+        <div className="mb-6">
+          <PriceConsolidationWidget card={card} />
+        </div>
+
         <div className="bg-white rounded-2xl p-5 border border-parchment-200 shadow-sm">
           <label className="text-xs font-bold uppercase tracking-widest text-leather-500 flex items-center gap-2 mb-3">
             <Coins className="w-4 h-4 text-gold-500" /> Marketplace Tracking

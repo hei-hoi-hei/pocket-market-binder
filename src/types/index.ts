@@ -19,9 +19,33 @@ export interface CardAttack {
   text?: string;
 }
 
+/** 
+ * Provider-agnostic canonical card identity.
+ * TCGdex remains the authoritative catalog, but other providers
+ * can be mapped to this identity.
+ */
+export interface CanonicalCardIdentity {
+  tcgdexId: string;
+  setId?: string;
+  setName?: string;
+  cardNumber?: string;
+  name?: string;
+  variant?: string;
+  language?: string;
+  rarity?: Rarity;
+  imageUrl?: string;
+
+  providerIds?: {
+    tcgplayer?: string[];
+    cardmarket?: string[];
+    cardtrader?: string[];
+    [provider: string]: string[] | undefined;
+  };
+}
+
 /** Provider-agnostic normalized Card model. */
 export interface Card {
-  id: string;
+  id: string; // This corresponds to tcgdexId
   name: string;
   category: CardCategory;
   types?: string[];
@@ -38,6 +62,9 @@ export interface Card {
   flavor?: string;
   variants?: CardVariants;
   artSeed?: number;
+  
+  // Link to canonical identity
+  identity?: CanonicalCardIdentity;
 }
 
 /** An entry in the user's binder (collection). */
