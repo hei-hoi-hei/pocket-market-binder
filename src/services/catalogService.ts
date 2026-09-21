@@ -1,16 +1,17 @@
 import type { Card } from '@/types';
 import { storage } from './storage';
-import { tcgdexProvider } from './providers/tcgdexProvider';
+import { catalogRegistry } from './catalog/catalogRegistry';
 
 export interface CatalogFilters {
   query?: string;
   type?: string | 'all';
   rarity?: string | 'all';
+  category?: string; // Added for multi-catalog support
 }
 
 export interface CatalogService {
-  getAll(): Promise<Card[]>;
-  getById(id: string): Promise<Card | undefined>;
+  getAll(category?: string): Promise<Card[]>;
+  getById(id: string, category?: string): Promise<Card | undefined>;
   search(filters: CatalogFilters): Promise<Card[]>;
 }
 
@@ -67,32 +68,38 @@ class HybridCatalogService implements CatalogService {
     }
   }
 
-  async getAll(): Promise<Card[]> {
+  async getAll(category?: string): Promise<Card[]> {
     await this.ensureInitialized();
+    const provider = catalogRegistry.getProvider(category);
+    
     if (this.memoryCache.size === 0 && navigator.onLine) {
       try {
-        const remoteCards = await tcgdexProvider.searchCards('');
+        const remoteCards = await provider.searchCards('');
         for (const card of remoteCards) {
-          this.memoryCache.set(card.id, card);
+          // Cast CatalogCard to Card - valid for Pokemon provider as it includes all Card fields
+          const fullCard = card as unknown as Card;
+          this.memoryCache.set(fullCard.id, fullCard);
         }
       } catch {}
     }
     return Array.from(this.memoryCache.values());
   }
 
-  async getById(id: string): Promise<Card | undefined> {
+  async getById(id: string, category?: string): Promise<Card | undefined> {
     await this.ensureInitialized();
 
     // 1. Check in-memory / local storage first
     const cached = this.memoryCache.get(id);
     if (cached) return cached;
 
-    // 2. Fetch full detail from TCGdex if available
+    // 2. Fetch full detail from provider if available
+    const provider = catalogRegistry.getProvider(category);
     try {
-      const remote = await tcgdexProvider.getCardById(id);
+      const remote = await provider.getCardById(id);
       if (remote) {
-        await this.persistCard(remote);
-        return remote;
+        const fullCard = remote as unknown as Card;
+        await this.persistCard(fullCard);
+        return fullCard;
       }
     } catch {
       // Remote fetch failed, fall back to offline cache
@@ -103,15 +110,17 @@ class HybridCatalogService implements CatalogService {
 
   async search(filters: CatalogFilters): Promise<Card[]> {
     await this.ensureInitialized();
+    const provider = catalogRegistry.getProvider(filters.category);
 
     // Attempt remote search / fetch if online
     if (navigator.onLine) {
       try {
-        const remoteCards = await tcgdexProvider.searchCards(filters.query || '');
+        const remoteCards = await provider.searchCards(filters.query || '');
         // Persist newly discovered cards
         for (const card of remoteCards) {
-          if (!this.memoryCache.has(card.id)) {
-            this.memoryCache.set(card.id, card);
+          const fullCard = card as unknown as Card;
+          if (!this.memoryCache.has(fullCard.id)) {
+            this.memoryCache.set(fullCard.id, fullCard);
           }
         }
         // Save batch to IndexedDB non-blocking
@@ -123,6 +132,9 @@ class HybridCatalogService implements CatalogService {
 
     // Filter across all locally known / cached cards
     const results = Array.from(this.memoryCache.values()).filter((c) => {
+      // If category filter is provided, restrict to that category
+      if (filters.category && c.category !== filters.category) return false;
+
       if (filters.type && filters.type !== 'all') {
         const needle = filters.type.toLowerCase();
         if (!c.types?.some((t) => t.toLowerCase() === needle)) return false;
@@ -139,3 +151,4 @@ class HybridCatalogService implements CatalogService {
 }
 
 export const catalogService: CatalogService = new HybridCatalogService();
+

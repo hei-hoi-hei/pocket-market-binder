@@ -1,61 +1,37 @@
-# AI Handoff & Source of Truth
+# AI Handoff State - V1.0.0 Release Candidate
 
-This is the primary entry-point document for any future AI agent working on Pocket Market Binder.
-
----
-
-## 1. Required Reading Order
-Before making any changes or answering architecture questions, read the documentation under `/docs/` in this exact order:
-1. `PROJECT_CONTEXT.md`
-2. `CURRENT_STATE.md`
-3. `ARCHITECTURE.md`
-4. `DECISIONS.md`
-5. `DATA_SOURCES.md`
-6. `DEVELOPMENT_WORKFLOW.md`
+This document provides a definitive handoff summary of the V1.0.0 Release Candidate state for Pocket Market Binder.
 
 ---
 
-## 2. Source of Truth Hierarchy
-If there is a conflict between sources, adhere strictly to this hierarchy:
-1. **Actual repository code and tests** (`src/`)
-2. **Project documentation under `/docs/`**
-3. **Existing external source/API documentation**
-4. **Current AI conversation**
-5. **AI assumptions**
-
-*Never assume an AI conversation history is authoritative over the repository.* If a conflict arises, investigate the codebase rather than silently relying on assumptions.
+## 1. Current State
+* **Status:** **100% IMPLEMENTED, VERIFIED, AND FROZEN.**
+* The V1.0.0 Release Candidate is officially frozen. All 5 Priorities of the Master Roadmap (Infrastructure, Data Migration, Sync Foundation, Supabase Integration, and QA/Responsive Polish) are complete.
 
 ---
 
-## 3. Current Project State Summary
-- Core PWA shell, navigation, IndexedDB persistence, collection management (binder, wishlist, cart), TCGdex catalog search, and artwork resolution are **Implemented & Verified**.
-- V1 Pricing Foundation (provider interfaces, currency normalization, median aggregation, outlier filtering, confidence evaluation, `Promise.allSettled` isolation, and storage prefix isolation) is **Audited & Verified**.
-- All four pricing provider adapters (`JustTCG`, `PkmnPrices`, `Scrydex`, `TickerMint`) are **Stubs** returning empty arrays with zero network calls.
-- **Pricing Provider Feasibility Status:** All four external pricing APIs (`TickerMint`, `PkmnPrices`, `JustTCG`, `Scrydex`) require authenticated API keys or are protected by WAF bot mitigation. Because Pocket Market Binder is a frontend-only static PWA with a ₱0 operating cost target and no backend server, direct client-side integration of these APIs is blocked due to secret exposure risks. **Future AI agents must not attempt to implement live API calls inside these provider adapters without an approved server-side proxy architecture (which is out of scope for V1).** All four adapters must remain safe stubs returning `[]`.
-- **Pricing Terminology:** Strictly use **Pocket Market Reference** (or `v1-median` reference) rather than "real-time price".
+## 2. Completed Milestones
+* **Priority 1 (Sync Foundation):** Contracts, LWW conflict resolution, and persistent outbox queue management (IndexedDB).
+* **Priority 2 (Data Migration Layer):** V1-to-V2 migrator, idempotent conversion of legacy data to `SyncRecord` entities.
+* **Priority 3 (Live Synchronization):** Supabase adapter, environment-aware initialization, auth-change hooks, and E2E verification suite.
+* **Priority 4 (Release QA & UX):** Responsive layout audit, defensive UX (ESC/click-outside for modals), and production build optimization.
+* **Priority 5 (V1.0 Freeze):** Final verification metrics and documentation update.
 
 ---
 
-## 4. Important Architectural Rules
-- **Local-First / Offline-First:** The app must function without internet. IndexedDB is the source of truth for user collection data.
-- **Provider Isolation:** Never embed provider-specific logic in UI components or core services. Always use adapter interfaces (`CatalogProvider`, `PricingProvider`).
-- **Storage Isolation:** Pricing cache keys must use prefixes (`cached_prices_store:`, `cached_observations_store:`) to prevent collision or mutation of user collection data (`binder`, `wishlist`, `cart`).
-- **No Direct API Calls from UI:** UI components must call application services (`collectionService`, `catalogService`, `pricingService`), never external APIs directly.
+## 3. Transition Boundary
+* **Next Phase (Priority 6):** Transition to **Post-V1 Catalog Expansion & General-Purpose Portal Architecture**. 
+* The current codebase is stable and prepared for the integration of broader catalog data structures and extended portal capabilities.
 
 ---
 
-## 5. Important Constraints
-- **Operating Cost:** ₱0. No paid APIs, paid databases, authentication servers, or paid hosting.
-- **No Authentication:** V1 has no user accounts or login systems.
-- **Preserve Stubs & Fallbacks:** Never remove offline fallback mechanisms or stub behaviors without verified replacements.
+## 4. Verification State
+* **`npm run typecheck`:** **PASSED** (0 TypeScript errors).
+* **`npm run build`:** **PASSED** (Production bundle verified).
+* **`vitest`:** **PASSED** (Unit and Supabase integration tests passed).
 
 ---
 
-## 6. How to Safely Make Changes
-1. Inspect the codebase first.
-2. Make minimal, focused changes aligned with existing patterns.
-3. Do not refactor unrelated modules or introduce unauthorized dependencies.
-4. Verify your work by running:
-   - `npm run typecheck`
-   - `npm run build`
-5. Ensure build and typecheck pass without errors.
+## 5. Maintenance Note
+This freeze signifies the end of the initial roadmap. Future development should branch from the V1.0.0 tag, prioritizing regression testing for the sync engine and new catalog category expansions.
+

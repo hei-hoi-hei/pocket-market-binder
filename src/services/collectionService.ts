@@ -1,3 +1,5 @@
+import { recordSyncChange } from './sync/syncCollectionService';
+
 import type {
   BinderEntry,
   CartEntry,
@@ -41,6 +43,7 @@ export async function addToBinder(cardId: string, qty = 1): Promise<BinderEntry[
     entries.push({ cardId, quantity: qty, addedAt: Date.now() });
   }
   await setBinder(entries);
+  await recordSyncChange('binder', cardId, { cardId, quantity: existing ? existing.quantity : qty });
   return entries;
 }
 
@@ -57,12 +60,14 @@ export async function setBinderQuantity(cardId: string, quantity: number): Promi
     }
   }
   await setBinder(entries);
+  await recordSyncChange('binder', cardId, { cardId, quantity });
   return entries;
 }
 
 export async function removeFromBinder(cardId: string): Promise<BinderEntry[]> {
   const entries = (await getBinder()).filter((e) => e.cardId !== cardId);
   await setBinder(entries);
+  await recordSyncChange('binder', cardId, {}, true);
   return entries;
 }
 
@@ -92,6 +97,7 @@ export async function addToWishlist(cardId: string): Promise<WishlistEntry[]> {
   const entries = await getWishlist();
   if (!entries.some((e) => e.cardId === cardId)) {
     entries.push({ cardId, addedAt: Date.now() });
+    await recordSyncChange('wishlist', cardId, { cardId });
   }
   await setWishlist(entries);
   return entries;
@@ -100,6 +106,7 @@ export async function addToWishlist(cardId: string): Promise<WishlistEntry[]> {
 export async function removeFromWishlist(cardId: string): Promise<WishlistEntry[]> {
   const entries = (await getWishlist()).filter((e) => e.cardId !== cardId);
   await setWishlist(entries);
+  await recordSyncChange('wishlist', cardId, {}, true);
   return entries;
 }
 
@@ -123,6 +130,7 @@ export async function addToCart(cardId: string, qty = 1, sellerPrice?: number | 
     entries.push({ cardId, quantity: qty, sellerPrice: sellerPrice ?? null, addedAt: Date.now() });
   }
   await setCart(entries);
+  await recordSyncChange('cart', cardId, { cardId, quantity: existing ? existing.quantity : qty, sellerPrice });
   return entries;
 }
 
@@ -131,12 +139,14 @@ export async function updateCartEntry(cardId: string, patch: Partial<Omit<CartEn
   const existing = entries.find((e) => e.cardId === cardId);
   if (existing) Object.assign(existing, patch);
   await setCart(entries);
+  await recordSyncChange('cart', cardId, { cardId, ...patch });
   return entries;
 }
 
 export async function removeFromCart(cardId: string): Promise<CartEntry[]> {
   const entries = (await getCart()).filter((e) => e.cardId !== cardId);
   await setCart(entries);
+  await recordSyncChange('cart', cardId, {}, true);
   return entries;
 }
 

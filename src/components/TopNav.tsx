@@ -1,7 +1,13 @@
-import { Home, BookOpen, Search, Heart, ShoppingCart, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Home, BookOpen, Search, Heart, ShoppingCart, Sparkles, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { Settings as SettingsIcon } from 'lucide-react';
+import { SettingsModal } from './SettingsModal';
+
 import type { ScreenId } from '@/types';
 import { useNav } from '@/context/NavContext';
 import { useCollection } from '@/context/CollectionContext';
+import { SupabaseSyncProvider } from '@/services/sync/providers/supabase/supabaseProvider';
+import { ProviderStatus } from '@/services/sync/types/sync.types';
 
 const ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
   { id: 'home', label: 'Home', icon: Home },
@@ -13,7 +19,28 @@ const ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
 
 export function TopNav() {
   const { screen, go } = useNav();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const { wishlist, cart } = useCollection();
+  const [syncStatus, setSyncStatus] = useState<ProviderStatus>('OFFLINE');
+
+  useEffect(() => {
+    const provider = new SupabaseSyncProvider();
+    
+    const updateStatus = () => {
+      setSyncStatus(provider.getProviderStatus());
+    };
+
+    updateStatus();
+
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+
+    return () => {
+      window.removeEventListener('online', updateStatus);
+      window.removeEventListener('offline', updateStatus);
+    };
+  }, []);
 
   const badgeFor = (id: ScreenId): number | null => {
     if (id === 'wishlist') return wishlist.length || null;
@@ -21,8 +48,44 @@ export function TopNav() {
     return null;
   };
 
+  const renderSyncIndicator = () => {
+    switch (syncStatus) {
+      case 'SYNCED':
+        return (
+          <div className="flex items-center gap-1.5 text-emerald-400 text-xs bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-800/50" title="Synced with Cloud">
+            <Cloud className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Synced</span>
+          </div>
+        );
+      case 'SYNCING':
+        return (
+          <div className="flex items-center gap-1.5 text-gold-400 text-xs bg-gold-950/40 px-2.5 py-1 rounded-full border border-gold-800/50 animate-pulse" title="Syncing...">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            <span className="hidden xl:inline">Syncing</span>
+          </div>
+        );
+      case 'OFFLINE':
+        return (
+          <div className="flex items-center gap-1.5 text-parchment-400 text-xs bg-parchment-900/40 px-2.5 py-1 rounded-full border border-leather-600" title="Offline Mode">
+            <CloudOff className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Offline</span>
+          </div>
+        );
+      case 'UNAVAILABLE':
+      case 'AUTH_ERROR':
+      default:
+        return (
+          <div className="flex items-center gap-1.5 text-fire-400 text-xs bg-fire-950/40 px-2.5 py-1 rounded-full border border-fire-800/50" title="Sync Unavailable">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Local Only</span>
+          </div>
+        );
+    }
+  };
+
   return (
-    <header className="hidden lg:block sticky top-0 z-50 bg-leather-800 border-b border-leather-600 shadow-md">
+    <>
+      <header className="hidden lg:block sticky top-0 z-50 bg-leather-800 border-b border-leather-600 shadow-md">
       <div className="mx-auto max-w-screen-2xl px-6 h-16 flex items-center justify-between">
         {/* Logo/Brand */}
         <button 
@@ -71,9 +134,24 @@ export function TopNav() {
             );
           })}
         </nav>
+
+        {/* Controls: Settings & Sync Indicator */}
+        <div className="flex items-center gap-3">
+          {renderSyncIndicator()}
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 text-parchment-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+            title="Settings & Backup"
+          >
+            <SettingsIcon className="w-5 h-5" />
+          </button>
+        </div>
       </div>
       {/* Gold accent line */}
       <div className="h-0.5 bg-gradient-to-r from-transparent via-gold-500/50 to-transparent" />
     </header>
+    <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+    </>
   );
 }
+
