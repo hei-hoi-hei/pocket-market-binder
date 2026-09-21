@@ -47,6 +47,10 @@ export class PokemonCatalogProvider implements ICatalogProvider {
       name,
       set: setName || setCode,
       number: setNumber,
+      // Keep the canonical Card fields available to consumers that use this
+      // lightweight catalog shape as a Card.
+      imageUrlLow,
+      imageUrlHigh,
       images: {
         low: imageUrlLow,
         high: imageUrlHigh

@@ -17,6 +17,25 @@ export interface CatalogService {
 
 const CACHED_CARDS_KEY = 'cached_cards_store';
 
+type LegacyCatalogImageFields = {
+  images?: {
+    low?: string;
+    high?: string;
+  };
+};
+
+function normalizeCardImageFields(card: Card): Card {
+  const legacyImages = (card as Card & LegacyCatalogImageFields).images;
+  const imageUrlLow = card.imageUrlLow || legacyImages?.low;
+  const imageUrlHigh = card.imageUrlHigh || legacyImages?.high;
+
+  if (imageUrlLow === card.imageUrlLow && imageUrlHigh === card.imageUrlHigh) {
+    return card;
+  }
+
+  return { ...card, imageUrlLow, imageUrlHigh };
+}
+
 function matchesQuery(card: Card, q: string): boolean {
   const needle = q.trim().toLowerCase();
   if (!needle) return true;
@@ -43,14 +62,17 @@ class HybridCatalogService implements CatalogService {
       if (persisted && Array.isArray(persisted)) {
         // Purge stale mock cards (IDs starting with PM-)
         const clean = persisted.filter((card) => !card.id.startsWith('PM-'));
+        const normalized = clean.map(normalizeCardImageFields);
+        const cacheWasRepaired = normalized.some((card, index) => card !== clean[index]);
         
-        for (const card of clean) {
+        for (const card of normalized) {
           this.memoryCache.set(card.id, card);
         }
 
-        // If mock records were removed, persist the cleaned catalog back
-        if (clean.length !== persisted.length) {
-          await storage.set(CACHED_CARDS_KEY, clean);
+        // Persist removed mocks and repaired legacy image fields so the cache
+        // remains valid on subsequent offline loads.
+        if (clean.length !== persisted.length || cacheWasRepaired) {
+          await storage.set(CACHED_CARDS_KEY, normalized);
         }
       }
     } catch {
@@ -77,7 +99,7 @@ class HybridCatalogService implements CatalogService {
         const remoteCards = await provider.searchCards('');
         for (const card of remoteCards) {
           // Cast CatalogCard to Card - valid for Pokemon provider as it includes all Card fields
-          const fullCard = card as unknown as Card;
+          const fullCard = normalizeCardImageFields(card as unknown as Card);
           this.memoryCache.set(fullCard.id, fullCard);
         }
       } catch {}
@@ -97,7 +119,7 @@ class HybridCatalogService implements CatalogService {
     try {
       const remote = await provider.getCardById(id);
       if (remote) {
-        const fullCard = remote as unknown as Card;
+        const fullCard = normalizeCardImageFields(remote as unknown as Card);
         await this.persistCard(fullCard);
         return fullCard;
       }
@@ -118,7 +140,7 @@ class HybridCatalogService implements CatalogService {
         const remoteCards = await provider.searchCards(filters.query || '');
         // Persist newly discovered cards
         for (const card of remoteCards) {
-          const fullCard = card as unknown as Card;
+          const fullCard = normalizeCardImageFields(card as unknown as Card);
           if (!this.memoryCache.has(fullCard.id)) {
             this.memoryCache.set(fullCard.id, fullCard);
           }
@@ -151,4 +173,3 @@ class HybridCatalogService implements CatalogService {
 }
 
 export const catalogService: CatalogService = new HybridCatalogService();
-
