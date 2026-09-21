@@ -109,7 +109,7 @@ export type ScreenId =
   | 'home'
   | 'binder'
   | 'search'
+  | 'scanner'
   | 'detail'
   | 'wishlist'
   | 'cart';
-

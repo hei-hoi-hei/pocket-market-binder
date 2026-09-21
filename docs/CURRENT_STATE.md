@@ -1,58 +1,188 @@
-# Current Project State
+# Pocket Market Binder — Authoritative Current State
 
-## Current Milestone
-**Milestone:** V1 Pricing Foundation & Provider Feasibility Audit Completed. All Pricing Providers Maintained as Stubs.
+**Status:** Current baseline and roadmap authority
+**Last reconciled:** 2026-09-21
 
----
+This document is authoritative for the current repository state and near-term roadmap. It supersedes conflicting release claims in older handoff documents without deleting their historical context.
 
-## Completed & Verified Work
-- **Application Shell & Navigation:** React 18 + Vite setup with mobile-first layout, desktop responsive breakpoints, TopNav, BottomNav, and client routing (`NavContext`).
-- **IndexedDB Persistence:** Native IndexedDB implementation (`storage.ts`) with key-space prefix isolation and automatic migration from legacy `localStorage`.
-- **Collection Management:** Full CRUD for binder entries, wishlist, and cart (`collectionService.ts` & `CollectionContext`).
-- **Catalog & Artwork Services:** Hybrid catalog (`catalogService.ts`) querying TCGdex with fallback to local IndexedDB cache; artwork resolver (`artworkService.ts`) with procedural SVG fallback.
-- **V1 Pricing Foundation (Audited & Verified):**
-  - **IndexedDB Storage Isolation:** Confirmed prefix isolation (`cached_prices_store:<cardId>` and `cached_observations_store:<cardId>`) in the shared IndexedDB store; pricing operations cannot mutate user collection data.
-  - **Offline & Stale Fallback:** `getPriceReference` falls back to cached references or cached observations when offline or on provider fetch failure.
-  - **Currency Normalization:** Implemented via static rates in `CURRENCY_CONVERSION_TO_USD`; original `PriceObservation` source values and currencies are preserved without mutation.
-  - **Median Aggregation:** Implemented mathematical median calculation (`v1-median`).
-  - **Outlier Filtering:** Filters observations outside $0.4\times$ to $2.5\times$ of the preliminary median when $N \ge 4$.
-  - **Multi-Factor Confidence Scoring:** Evaluates diversity (providers/marketplaces), agreement (max deviation $\le 35\%$ for High, $\le 60\%$ for Medium), and freshness ratio ($\ge 50\%$ within 24 hours).
-  - **Provider Isolation:** Uses `Promise.allSettled` in `getPriceReference` so individual provider failures do not affect others.
-  - **Pricing Provider Feasibility Audit:** Evaluated `TickerMint`, `PkmnPrices`, `JustTCG`, and `Scrydex`. Confirmed that direct frontend-only integration is blocked by required API key authentication, WAF bot protection, and ₱0 operating cost / static PWA constraints.
-  - **Provider Stubs:** All four pricing provider adapters (`JustTCG`, `PkmnPrices`, `Scrydex`, `TickerMint`) implement the `PricingProvider` interface, return empty arrays (`[]`), and perform zero network requests. Terminology strictly uses **Pocket Market Reference**.
-  - **Verification:** `npm run typecheck` (PASSED), `npm run build` (PASSED).
+## Documentation hierarchy
 
----
+1. `CURRENT_STATE.md` — authoritative implementation state and lifecycle classification.
+2. `POCKET_MARKET_BINDER_BUILD_PLAN.md` — authoritative development order and phase gates.
+3. `POCKET_MARKET_BINDER_ARCHITECTURE_DECISIONS.md` — authoritative architectural invariants.
+4. `POCKET_MARKET_BINDER_PRODUCT_SPEC.md` — product intent and constraints; historical scope statements remain useful where not superseded here.
+5. `ARCHITECTURE.md`, `DATA_SOURCES.md`, and `PROJECT_CONTEXT.md` — supporting descriptions that must be read against this baseline.
+6. `AI_HANDOFF.md` — historical release handoff; it is not the current implementation authority.
 
-## In-Progress Work
-- None currently. V1 pricing foundation and feasibility audits are successfully completed.
+## Classification rules
 
----
+- **IMPLEMENTED:** Working and present in the repository.
+- **PARTIAL:** A foundation exists, but important behavior is incomplete.
+- **IN PROGRESS:** Uncommitted work currently exists in the working tree.
+- **DEFERRED:** Explicitly intended but postponed, with a documented boundary or reason.
+- **MISSING / COMMITTED:** Part of the intended architecture or product but not implemented.
+- **OPTIONAL / FUTURE:** Useful possibility, not a committed requirement.
+- **UNKNOWN:** Discussed or plausible, but commitment cannot be established from repository evidence.
+- **INTENTIONALLY REMOVED:** Use only when an explicit removal decision exists.
 
-## Not-Yet-Started Work / Planned Features
-- **UI Integration of Pricing:** Hooking `pricingService.getPriceReference()` into UI components when cached/derived references exist.
-- **Optional Card Scanner:** Camera/OCR card identification (`ScannerProvider`).
-- **Cloud Synchronization & Server-Side Proxy:** Optional future cross-device sync or backend proxy for authenticated pricing provider APIs (out of scope for V1).
+## V1 scope rule
 
----
+V1 represents the complete original Pocket Market Binder product vision. A committed V1 requirement that is not implemented is unfinished V1 work, not automatically future scope. Future agents must not downgrade missing requirements to V2 merely because they are absent from the current code. Use `DEFERRED`, `OPTIONAL / FUTURE`, or `INTENTIONALLY REMOVED` only when an explicit product decision supports that classification.
 
-## Known Limitations & V1 Simplifications
-- **Static Currency Conversion:** Uses hardcoded exchange rates (`CURRENCY_CONVERSION_TO_USD`) rather than a live forex rate API.
-- **Broad Outlier Thresholds:** Uses fixed $0.4\times$ to $2.5\times$ preliminary median multipliers for outlier pruning.
-- **Heuristic Confidence:** Confidence scores rely on fixed threshold heuristics rather than statistical variance models.
-- **Pricing Provider Stubs:** All pricing providers (`TickerMint`, `PkmnPrices`, `JustTCG`, `Scrydex`) return `[]` because direct client-side integration violates ₱0 / static PWA security constraints (API key exposure). Therefore, `getPriceReference()` relies on cached observations or returns `null` in V1.
+## Current baseline
 
----
+### IMPLEMENTED
 
-## Known Technical Debt
-- `src/data/mockCatalog.ts`: Unused leftover mock data file from the early prototyping phase (cleaned/purged dynamically by `catalogService.ts`).
+- React 18 + TypeScript + Vite mobile-first PWA shell.
+- Responsive navigation, binder, search, card detail, wishlist, and cart flows.
+- Manual catalog search and manual binder addition.
+- IndexedDB persistence with isolated user/catalog/pricing key spaces.
+- Legacy `localStorage` migration.
+- Binder quantities, wishlist, cart, and seller-price entry.
+- TCGdex-backed Pokémon catalog search/detail mapping and catalog caching.
+- High/low catalog artwork URL selection and UI/procedural fallback behavior where applicable.
+- Collection JSON export, merge import, and overwrite import.
+- Pricing observation types, provider interface, caching, aggregation, normalization, median/outlier logic, and confidence statuses.
+- Basic sync contracts, outbox storage, migration scaffolding, Supabase adapter, and conflict-resolution components.
+- PWA manifest, service-worker registration, Workbox configuration, and offline shell support.
 
----
+### PARTIAL
 
-## Current Blockers
-- None. (Pricing provider direct frontend integration is intentionally deferred / maintained as stubs due to V1 architecture constraints).
+- **Catalog:** Provider abstraction and category registry exist, but only one live Pokémon provider is registered. There is no source resolver, provider priority, fallback, or enrichment pipeline.
+- **Canonical identity:** Identity types and verification service exist, but no identity provider is registered and no user-facing verification flow exists. Identity verification is not image recognition.
+- **Pricing:** Architecture is substantially present, but most secondary providers are stubs and current TCGdex pricing extraction appears schema-stale/incomplete. Pricing remains separate from canonical `Card`.
+- **Artwork:** URL support and quality fallback exist, but artwork is still coupled to catalog-provided TCGdex URLs. True multi-provider artwork resolution and artwork-specific caching are absent.
+- **Synchronization:** Contracts, outbox, push/provider scaffolding, and migration components exist. Pulled changes, cursor persistence, conflict wiring, account lifecycle, and truthful user-facing sync state are incomplete.
+- **Import/export:** Collection backup flows exist, but deep record validation, atomicity, migration robustness, and sync integration are incomplete.
+- **Mobile UI:** The application is responsive/mobile-capable, but some components become squeezed or compressed at narrow widths. This is targeted UI hardening, not a reason for visual redesign.
+- **Capacitor:** Configuration and dependencies exist, but no native project, plugin, permission, or APK build exists.
 
----
+### IN PROGRESS
 
-## Recommended Immediate Next Step
-- Proceed with UI display integration of Pocket Market Reference values or optional card scanner features, ensuring stubs and offline fallback behaviors remain intact.
+- Uncommitted scanner image-acquisition work in the working tree:
+  - camera/file input
+  - image validation
+  - preview, replace, and remove behavior
+  - object-URL lifecycle cleanup
+  - frozen `ScannerProvider` type boundary
+- Isolated OCR benchmark and controlled catalog-matching benchmark.
+
+This work is not released scanner recognition.
+
+### DEFERRED
+
+- Production OCR and card recognition: deferred until benchmark evidence supports a reliable local path.
+- Paid/authenticated pricing providers: deferred because of credentials, terms, cost, or client-side security constraints.
+- Native Android/iOS packaging: deferred until PWA behavior and product scope are stable; Capacitor configuration alone is not native support.
+
+### UNFINISHED V1 / MISSING
+
+- Modular source/provider registry spanning catalog, pricing, artwork, and identification.
+- Distinct provider fallback and enrichment semantics.
+- Multiple live catalog providers and catalog resolver.
+- BYO-credential configuration for legitimately user-owned private providers.
+- Production scanner provider, candidate generation, confidence/evidence review, and confirmation workflow.
+- Full bidirectional synchronization: pull reconciliation, cursor persistence, conflict resolution, reliable outbox behavior, account/auth lifecycle, status, errors, and multi-device behavior.
+- TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
+- Scanner preprocessing, OCR/recognition, catalog matching, candidate generation, evidence/confidence, user confirmation, and Binder insertion.
+- Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
+- Narrow-width audit and targeted responsive fixes without redesign.
+- Robust provider capability/health reporting.
+
+### OPTIONAL / FUTURE
+
+- Additional TCG categories.
+- Additional artwork sources and prefetching.
+- User-facing pricing refresh/source controls.
+- Server-side proxy for providers that legally require protected credentials.
+- Native platform integrations after the web baseline is stable.
+
+### NOT A V1 PRODUCT REQUIREMENT
+
+- Embedded ChatGPT UI, OpenAI integration, AI credential management, AI-powered card identification, and AI-dependent Binder functionality are not V1 product requirements. References to ChatGPT, Cline, Copilot, or other AI systems describe the development workflow only.
+
+### UNKNOWN
+
+- Whether Capacitor setup was intentionally staged or simply incomplete.
+- Whether synchronization belongs in V1 or a later release. This requires a product decision.
+- Whether broader provider enrichment was committed scope or architectural aspiration.
+
+No major capability has clear evidence of being intentionally removed.
+
+## Provider/source architecture requirement
+
+The application is designed around a modular source/provider ecosystem rather than a single data vendor:
+
+```text
+Source Registry
+    ├── Catalog: free/default, secondary, optional user-configured
+    ├── Pricing: free/default, secondary, optional user-configured
+    ├── Artwork: free/default, secondary
+    └── Identification: local/free, optional additional providers
+```
+
+The future source system must distinguish:
+
+- **Fallback:** Provider A cannot satisfy a request, so Provider B is attempted.
+- **Enrichment:** Provider A supplies some information and Provider B supplies missing or additional information.
+
+Free providers remain the default. Users may optionally configure services they legitimately have access to, but the application must not bundle shared paid keys, redistribute credentials, proxy paid access, bypass quotas, or make paid access mandatory. Credentials must remain separate from cards, collections, catalog, pricing, artwork, and ordinary collection exports.
+
+## Pricing baseline
+
+```text
+Pricing architecture: PARTIAL / substantially present
+Live provider coverage: PARTIAL
+TCGdex adapter: REQUIRES SCHEMA RECONCILIATION
+```
+
+Pricing observations remain source-, marketplace-, currency-, variant-, and timestamp-aware. Pricing must not be added to canonical `Card` identity.
+
+## Scanner baseline
+
+```text
+Image acquisition
+    ↓
+ScannerProvider contract
+    ↓
+Recognition: not production-ready
+    ↓
+Candidate generation: not implemented
+    ↓
+User confirmation: not implemented
+    ↓
+Binder insertion: not implemented
+```
+
+Scanner providers produce candidates; they do not directly mutate the binder. Identity verification is metadata verification for known cards, not image recognition.
+
+## Decision preservation
+
+Future coding agents must preserve:
+
+1. IndexedDB as the collection source of truth.
+2. External providers as supplemental sources.
+3. No duplicated catalog/artwork/pricing payloads in binder entries.
+4. Free providers as the default.
+5. Paid/private providers as optional BYO-credential sources.
+6. No shared paid credentials.
+7. Fallback and enrichment as distinct behaviors.
+8. Pricing separate from canonical `Card`.
+9. Scanner providers produce candidates only.
+10. User confirmation before binder mutation.
+11. Identity verification is not image recognition.
+12. Scanner failure must not break manual binder workflows.
+13. PWA/local-first operation without paid infrastructure.
+14. Native packaging separate from browser/PWA functionality.
+15. Responsive hardening must not become an unsolicited visual redesign.
+
+## Next implementation order
+
+1. Accept this documentation baseline and resolve the synchronization release-scope decision.
+2. Reconcile provider/source architecture before adding providers.
+3. Repair and test the TCGdex pricing adapter without changing `Card`.
+4. Continue isolated OCR/preprocessing evaluation.
+5. Implement scanner candidates and confirmation only after recognition evidence supports it.
+6. Complete synchronization only if product scope is explicitly confirmed.
+7. Harden narrow mobile layouts with targeted corrections.
+8. Create native projects only after the PWA baseline is stable.

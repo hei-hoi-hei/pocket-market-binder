@@ -1,37 +1,23 @@
-# AI Handoff State - V1.0.0 Release Candidate
+# AI Handoff — Historical Release Note
 
-This document provides a definitive handoff summary of the V1.0.0 Release Candidate state for Pocket Market Binder.
+> **Historical document.** The authoritative current state is [CURRENT_STATE.md](./CURRENT_STATE.md). Do not treat the claims below as a complete description of the current implementation.
 
----
+This document records the V1.0.0 release-candidate handoff that described synchronization, migration, Supabase integration, and QA work as complete. The current repository baseline subsequently reconciled those claims and found synchronization behavior to be partial: pulled changes, cursor persistence, conflict wiring, account lifecycle, and truthful sync status remain incomplete.
 
-## 1. Current State
-* **Status:** **100% IMPLEMENTED, VERIFIED, AND FROZEN.**
-* The V1.0.0 Release Candidate is officially frozen. All 5 Priorities of the Master Roadmap (Infrastructure, Data Migration, Sync Foundation, Supabase Integration, and QA/Responsive Polish) are complete.
+Future coding agents must:
 
----
+1. Read [CURRENT_STATE.md](./CURRENT_STATE.md) first.
+2. Read [POCKET_MARKET_BINDER_BUILD_PLAN.md](./POCKET_MARKET_BINDER_BUILD_PLAN.md) before selecting a phase.
+3. Read [POCKET_MARKET_BINDER_ARCHITECTURE_DECISIONS.md](./POCKET_MARKET_BINDER_ARCHITECTURE_DECISIONS.md) before changing architecture.
+4. Distinguish implemented, partial, in-progress, deferred, missing/committed, optional/future, unknown, and intentionally removed work.
+5. Never infer that an absent feature is out of scope.
+6. Treat committed V1 requirements that are not implemented as unfinished V1 work, not automatically V2 or future work.
+7. Preserve modular providers, free-first operation, and optional BYO credentials.
+8. Keep provider fallback distinct from provider enrichment.
+9. Do not narrow the overall architecture into TCGdex-specific assumptions.
+10. Preserve the scanner flow: image → provider → candidates → confirmation → binder.
+11. Verify existing work before implementing replacements.
 
-## 2. Completed Milestones
-* **Priority 1 (Sync Foundation):** Contracts, LWW conflict resolution, and persistent outbox queue management (IndexedDB).
-* **Priority 2 (Data Migration Layer):** V1-to-V2 migrator, idempotent conversion of legacy data to `SyncRecord` entities.
-* **Priority 3 (Live Synchronization):** Supabase adapter, environment-aware initialization, auth-change hooks, and E2E verification suite.
-* **Priority 4 (Release QA & UX):** Responsive layout audit, defensive UX (ESC/click-outside for modals), and production build optimization.
-* **Priority 5 (V1.0 Freeze):** Final verification metrics and documentation update.
+ChatGPT, OpenAI, Cline, Copilot, and other AI references in project materials describe development tooling. Embedded ChatGPT, OpenAI integration, AI credential management, AI-powered card identification, and AI-dependent Binder functionality are not V1 product requirements.
 
----
-
-## 3. Transition Boundary
-* **Next Phase (Priority 6):** Transition to **Post-V1 Catalog Expansion & General-Purpose Portal Architecture**. 
-* The current codebase is stable and prepared for the integration of broader catalog data structures and extended portal capabilities.
-
----
-
-## 4. Verification State
-* **`npm run typecheck`:** **PASSED** (0 TypeScript errors).
-* **`npm run build`:** **PASSED** (Production bundle verified).
-* **`vitest`:** **PASSED** (Unit and Supabase integration tests passed).
-
----
-
-## 5. Maintenance Note
-This freeze signifies the end of the initial roadmap. Future development should branch from the V1.0.0 tag, prioritizing regression testing for the sync engine and new catalog category expansions.
-
+The original release verification claims remain useful historical context, but they do not supersede the reconciled current-state document.

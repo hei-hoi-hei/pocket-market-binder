@@ -7,6 +7,8 @@
 **Primary Platform:** Mobile-first PWA  
 **Primary TCG:** Pokémon TCG
 
+> **Current-state authority:** See [CURRENT_STATE.md](./CURRENT_STATE.md) for implementation status and [POCKET_MARKET_BINDER_BUILD_PLAN.md](./POCKET_MARKET_BINDER_BUILD_PLAN.md) for lifecycle order. This document records invariants, not a claim that every planned capability is implemented.
+
 ---
 
 # 1. Purpose
@@ -38,6 +40,20 @@ External services provide supplemental information such as:
 - card catalog data
 - market prices
 - scanning/identification
+
+## Decision preservation
+
+- The source architecture is modular and must not be narrowed to TCGdex alone.
+- Provider fallback and provider enrichment are distinct behaviors.
+- Free providers are the default; private or paid providers are optional BYO-credential sources.
+- Shared paid credentials, paid-access proxying, quota bypass, and mandatory paid services are prohibited.
+- Credentials remain separate from canonical cards, collections, catalog, artwork, pricing observations, and ordinary exports.
+- Pricing remains supplemental and separate from canonical `Card` identity.
+- Scanner providers produce candidates only; user confirmation precedes binder mutation.
+- Identity verification is metadata verification, not image recognition.
+- Scanner failure must not break manual binder workflows.
+- Native packaging is separate from PWA functionality.
+- Responsive hardening must not become an unsolicited visual redesign.
 
 The application should continue functioning when external services fail.
 

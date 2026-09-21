@@ -8,6 +8,7 @@ import { SearchScreen } from '@/screens/SearchScreen';
 import { CardDetailScreen } from '@/screens/CardDetailScreen';
 import { WishlistScreen } from '@/screens/WishlistScreen';
 import { CartScreen } from '@/screens/CartScreen';
+import { ScannerScreen } from '@/screens/ScannerScreen';
 
 function ScreenRouter() {
   const { screen } = useNav();
@@ -16,6 +17,7 @@ function ScreenRouter() {
     case 'home': return <HomeScreen />;
     case 'binder': return <BinderScreen />;
     case 'search': return <SearchScreen />;
+    case 'scanner': return <ScannerScreen />;
     case 'detail': return <CardDetailScreen />;
     case 'wishlist': return <WishlistScreen />;
     case 'cart': return <CartScreen />;

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "base4-4",
+    "name": "Charizard",
+    "collectorNumber": "4",
+    "setCode": "base4",
+    "layout": "older Pokemon",
+    "condition": "clear TCGdex scan; not a phone photograph"
+  },
+  {
+    "id": "base1-98",
+    "name": "Fire Energy",
+    "collectorNumber": "98",
+    "setCode": "base1",
+    "layout": "older Energy",
+    "condition": "clear TCGdex scan; not a phone photograph"
+  },
+  {
+    "id": "swsh1-138",
+    "name": "Zacian V",
+    "collectorNumber": "138",
+    "setCode": "swsh1",
+    "layout": "modern V",
+    "condition": "clear TCGdex scan; not a phone photograph"
+  },
+  {
+    "id": "sv03.5-006",
+    "name": "Charizard ex",
+    "collectorNumber": "006",
+    "setCode": "sv03.5",
+    "layout": "modern ex",
+    "condition": "clear TCGdex scan; not a phone photograph"
+  },
+  {
+    "id": "svp-056",
+    "name": "Charizard ex",
+    "collectorNumber": "056",
+    "setCode": "svp",
+    "layout": "promo",
+    "condition": "clear TCGdex scan; promo numbering"
+  },
+  {
+    "id": "swsh12.5-096",
+    "name": "Zacian VSTAR",
+    "collectorNumber": "096",
+    "setCode": "swsh12.5",
+    "layout": "subset VSTAR",
+    "condition": "clear TCGdex scan; subset numbering"
+  }
+]

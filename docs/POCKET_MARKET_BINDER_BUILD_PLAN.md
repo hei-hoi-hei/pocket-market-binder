@@ -1,6 +1,8 @@
 # Pocket Market Binder
 ## AI Builder → Extraction → Reinforcement → Final Build Plan
 
+> **Roadmap authority:** Lifecycle status is maintained in [CURRENT_STATE.md](./CURRENT_STATE.md). This document defines development order; it does not override the reconciled implementation status.
+
 **Project:** Pocket Market Binder  
 **Purpose:** Personal portfolio/reference project  
 **Target Cost:** ₱0  
@@ -255,6 +257,38 @@ External services connect through adapters:
     CardProvider
     PricingProvider
     ScannerProvider
+
+## 7A. Preserved source ecosystem
+
+The application is designed around a modular source/provider ecosystem rather than a single vendor. The eventual source registry covers catalog, pricing, artwork, and identification providers.
+
+Provider behavior has two distinct forms:
+
+- **Fallback:** try another provider when the current provider cannot satisfy a request.
+- **Enrichment:** combine providers when one source supplies missing or additional information.
+
+Free providers are the default. Optional user-owned paid/private providers may be configured only with the user's legitimate credentials where permitted. Shared credentials, credential redistribution, paid-access proxying, quota bypass, and mandatory paid services are prohibited. Credentials are separate from cards, collections, catalog, artwork, pricing observations, and ordinary exports.
+
+## 7B. V1 scope and requirement lifecycle roadmap
+
+V1 represents the complete original Pocket Market Binder product vision. A committed V1 requirement that is not implemented is unfinished V1 work, not automatically future scope. The roadmap must preserve missing V1 work until it is implemented, explicitly deferred by product decision, or explicitly removed.
+
+| Requirement | Status | Phase / boundary | Reason or dependency |
+|---|---|---|---|
+| IndexedDB collection source of truth | Implemented | Preserve | User data must remain local-first |
+| Manual catalog search and binder addition | Implemented | Preserve | Must remain independent of scanner |
+| Catalog provider abstraction | Partial | Provider clarification | Existing registry is not a source resolver |
+| Multiple catalog providers | Missing / committed | Provider phase | Requires resolver, priority, fallback, and enrichment decisions |
+| Pricing aggregation and cache | Partial / substantially present | Pricing phase | Engine exists; live adapters and TCGdex schema need reconciliation |
+| Production scanner recognition | Intentionally deferred | Recognition phase | Benchmark and lifecycle evidence required first |
+| Scanner candidates and confirmation | Unfinished V1 / missing | Scanner integration phase | Depends on reliable recognition; provider must not mutate binder |
+| User-owned provider credentials | Missing / committed | Provider configuration phase | Requires secure storage and export exclusion policy |
+| Bidirectional synchronization | Unfinished V1 / scope decision required | Product decision gate | Pull, cursor, conflict wiring, and account lifecycle incomplete |
+| Narrow-width UI hardening | Partial | UI hardening phase | Targeted corrections only; no redesign |
+| Native Android/iOS packaging | Deferred | Platform phase | Requires stable PWA and native project setup |
+| User-facing ChatGPT/AI feature | Not a V1 product requirement | Development workflow only | AI references describe tooling, not Binder functionality |
+
+The roadmap must not allow a discussed requirement to disappear. Every requirement must be implemented, explicitly deferred with a reason, explicitly rejected, marked optional, or retained as unknown.
 
 Do not allow UI components to directly depend on external providers.
 

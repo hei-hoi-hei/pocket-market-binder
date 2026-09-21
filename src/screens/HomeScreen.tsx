@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, BookOpen, Search, Heart, ShoppingCart, TrendingUp, Layers, Coins } from 'lucide-react';
+import { Sparkles, BookOpen, Search, Heart, ShoppingCart, TrendingUp, Layers, Coins, Camera } from 'lucide-react';
 import type { Card } from '@/types';
 import { useNav } from '@/context/NavContext';
 import { useCollection } from '@/context/CollectionContext';
@@ -52,6 +52,12 @@ export function HomeScreen() {
               className="bg-leather-800/40 border border-parchment-300/30 text-white font-bold text-sm px-4 py-2 rounded-lg flex items-center gap-1.5 hover:bg-leather-800/60 transition-colors active:scale-95"
             >
               <BookOpen className="w-4 h-4" /> My Binder
+            </button>
+            <button
+              onClick={() => go('scanner')}
+              className="bg-white/10 border border-parchment-300/30 text-white font-bold text-sm px-4 py-2 rounded-lg flex items-center gap-1.5 hover:bg-white/20 transition-colors active:scale-95"
+            >
+              <Camera className="w-4 h-4" /> Scan Card
             </button>
           </div>
         </div>
