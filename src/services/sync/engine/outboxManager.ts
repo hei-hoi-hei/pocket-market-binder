@@ -1,39 +1,9 @@
 import { OutboxEntry } from '../types/sync.types';
-
-const DB_NAME = 'pocket-market-sync';
-const STORE_NAME = 'outbox';
-const DB_VERSION = 1;
+import { openSyncDatabase, OUTBOX_STORE } from '../syncDatabase';
 
 class OutboxManager {
-  private db: IDBDatabase | null = null;
-  private initPromise: Promise<IDBDatabase> | null = null;
-
   private async getDB(): Promise<IDBDatabase> {
-    if (this.db) return this.db;
-    if (this.initPromise) return this.initPromise;
-
-    this.initPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onerror = () => {
-        this.initPromise = null;
-        reject(request.error);
-      };
-
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve(request.result);
-      };
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-        }
-      };
-    });
-
-    return this.initPromise;
+    return openSyncDatabase();
   }
 
   /**
@@ -42,8 +12,8 @@ class OutboxManager {
   async enqueue(entry: Omit<OutboxEntry, 'id' | 'timestamp'>): Promise<void> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
+      const transaction = db.transaction(OUTBOX_STORE, 'readwrite');
+      const store = transaction.objectStore(OUTBOX_STORE);
       const fullEntry: OutboxEntry = {
         ...entry,
         timestamp: Date.now(),
@@ -62,8 +32,8 @@ class OutboxManager {
   async getNextBatch(limit: number): Promise<OutboxEntry[]> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
+      const transaction = db.transaction(OUTBOX_STORE, 'readonly');
+      const store = transaction.objectStore(OUTBOX_STORE);
       const request = store.getAll(null, limit);
 
       request.onerror = () => reject(request.error);
@@ -79,8 +49,8 @@ class OutboxManager {
     if (ids.length === 0) return;
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
+      const transaction = db.transaction(OUTBOX_STORE, 'readwrite');
+      const store = transaction.objectStore(OUTBOX_STORE);
       
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
@@ -98,8 +68,8 @@ class OutboxManager {
   async clear(): Promise<void> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
+      const transaction = db.transaction(OUTBOX_STORE, 'readwrite');
+      const store = transaction.objectStore(OUTBOX_STORE);
       const request = store.clear();
 
       request.onerror = () => reject(request.error);

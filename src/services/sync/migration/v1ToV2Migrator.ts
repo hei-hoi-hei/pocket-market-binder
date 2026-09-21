@@ -1,25 +1,11 @@
 import { SyncRecord, SyncStore } from '../types/sync.types';
 import { MigrationResult, MigrationStatus } from './migrationTypes';
 import { storage } from '../../../services/storage';
-
-const SYNC_DB_NAME = 'pocket-market-sync';
-const SYNC_STORE_NAME = 'sync-records'; // Separate store for V2 data
-const SYNC_DB_VERSION = 1;
+import { openSyncDatabase, SYNC_RECORDS_STORE } from '../syncDatabase';
 
 export class V1ToV2Migrator {
   private async getSyncDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(SYNC_DB_NAME, SYNC_DB_VERSION);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(SYNC_STORE_NAME)) {
-          // Store sync records keyed by recordId
-          db.createObjectStore(SYNC_STORE_NAME, { keyPath: 'recordId' });
-        }
-      };
-    });
+    return openSyncDatabase();
   }
 
   private generateUUID(): string {
@@ -46,8 +32,8 @@ export class V1ToV2Migrator {
         if (!legacyData || !Array.isArray(legacyData)) continue;
 
         // 2. Convert and Batch Save
-        const transaction = db.transaction(SYNC_STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(SYNC_STORE_NAME);
+        const transaction = db.transaction(SYNC_RECORDS_STORE, 'readwrite');
+        const store = transaction.objectStore(SYNC_RECORDS_STORE);
 
         for (const item of legacyData) {
           const syncRecord: SyncRecord = {
