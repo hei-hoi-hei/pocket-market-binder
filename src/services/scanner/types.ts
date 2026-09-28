@@ -23,19 +23,23 @@ export type ScannerIdentificationResult =
   | {
       status: 'success';
       candidates: ScannerCandidate[];
+      source?: string;
     }
   | {
       status: 'no-match';
       candidates: [];
+      source?: string;
     }
   | {
       status: 'unavailable';
       reason: string;
+      source?: string;
     }
   | {
       status: 'error';
       message: string;
       retryable?: boolean;
+      source?: string;
     };
 
 export interface ScannerProvider {

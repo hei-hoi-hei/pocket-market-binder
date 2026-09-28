@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getBinder } from '../../collectionService';
-import { identifyImage, normalizeScannerResult } from '../scannerService';
+import { getBinder, getCart, getWishlist } from '../../collectionService';
+import {
+  identifyImage,
+  identifyImageWithFallback,
+  normalizeScannerResult,
+  offlineScannerProvider,
+} from '../scannerService';
 import type { ScannerProvider } from '../types';
 
 const store = vi.hoisted(() => new Map<string, unknown>());
@@ -18,6 +23,7 @@ const image = new Blob(['card image'], { type: 'image/jpeg' });
 describe('scanner recognition boundary', () => {
   beforeEach(() => {
     store.clear();
+    vi.unstubAllGlobals();
   });
 
   it('normalizes recognized clues, confidence, evidence, and provider metadata', () => {
@@ -75,6 +81,15 @@ describe('scanner recognition boundary', () => {
       status: 'unavailable',
       reason: 'No recognition provider configured.',
     });
+    expect(normalizeScannerResult({
+      status: 'unavailable',
+      reason: 'No offline recognition engine is configured.',
+      source: 'offline',
+    })).toEqual({
+      status: 'unavailable',
+      reason: 'No offline recognition engine is configured.',
+      source: 'offline',
+    });
   });
 
   it('returns an explicit error for malformed provider responses', () => {
@@ -98,6 +113,7 @@ describe('scanner recognition boundary', () => {
       status: 'error',
       message: 'Recognition worker failed.',
       retryable: true,
+      source: 'test-provider',
     });
   });
 
@@ -114,9 +130,150 @@ describe('scanner recognition boundary', () => {
 
     const result = await identifyImage(provider, image);
 
-    expect(result.status).toBe('success');
+    expect(result).toMatchObject({ status: 'success', source: 'test-provider' });
     expect(await getBinder()).toEqual(existingBinder);
     expect(store.get('binder')).toEqual(existingBinder);
+  });
+
+  it('runs the offline provider without network configuration or network requests', async () => {
+    const fetchRequest = vi.fn();
+    const xhrRequest = vi.fn();
+    const webSocketRequest = vi.fn();
+    vi.stubGlobal('fetch', fetchRequest);
+    vi.stubGlobal('XMLHttpRequest', xhrRequest);
+    vi.stubGlobal('WebSocket', webSocketRequest);
+
+    await expect(identifyImage(offlineScannerProvider, image)).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'No offline recognition engine is configured.',
+      source: 'offline',
+    });
+
+    expect(offlineScannerProvider.name).toBe('offline');
+    expect(fetchRequest).not.toHaveBeenCalled();
+    expect(xhrRequest).not.toHaveBeenCalled();
+    expect(webSocketRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not fabricate recognition candidates or catalog identity offline', async () => {
+    const result = await identifyImage(offlineScannerProvider, image);
+
+    expect(result).toEqual({
+      status: 'unavailable',
+      reason: 'No offline recognition engine is configured.',
+      source: 'offline',
+    });
+    expect(result).not.toHaveProperty('candidates');
+    expect(result).not.toHaveProperty('cardId');
+  });
+
+  it('uses the offline provider when no recognition provider is configured', async () => {
+    await expect(identifyImageWithFallback([], image)).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'No offline recognition engine is configured.',
+      source: 'offline',
+    });
+  });
+
+  it('returns cancellation while a configured provider never settles without invoking offline fallback', async () => {
+    const controller = new AbortController();
+    const provider: ScannerProvider = {
+      name: 'stalled-provider',
+      identify: vi.fn(() => new Promise<unknown>(() => {})),
+    };
+    const offlineIdentify = vi.spyOn(offlineScannerProvider, 'identify');
+
+    const resultPromise = identifyImageWithFallback([provider], image, controller.signal);
+    expect(provider.identify).toHaveBeenCalledOnce();
+    controller.abort();
+
+    await expect(resultPromise).resolves.toEqual({
+      status: 'error',
+      message: 'Recognition was cancelled.',
+      retryable: false,
+    });
+    expect(offlineIdentify).not.toHaveBeenCalled();
+    offlineIdentify.mockRestore();
+  });
+
+  it('preserves configured-provider success and no-match as terminal fallback-chain results', async () => {
+    const successProvider: ScannerProvider = {
+      name: 'recognizer',
+      identify: vi.fn().mockResolvedValue({
+        status: 'success',
+        candidates: [{ name: 'Pikachu', confidence: 0.2 }],
+      }),
+    };
+    const noMatchProvider: ScannerProvider = {
+      name: 'recognizer',
+      identify: vi.fn().mockResolvedValue({ status: 'no-match' }),
+    };
+    const offlineIdentify = vi.spyOn(offlineScannerProvider, 'identify');
+
+    await expect(identifyImageWithFallback([successProvider], image)).resolves.toEqual({
+      status: 'success',
+      candidates: [{ name: 'Pikachu', confidence: 0.2 }],
+      source: 'recognizer',
+    });
+    await expect(identifyImageWithFallback([noMatchProvider], image)).resolves.toEqual({
+      status: 'no-match',
+      candidates: [],
+      source: 'recognizer',
+    });
+    expect(offlineIdentify).not.toHaveBeenCalled();
+    offlineIdentify.mockRestore();
+  });
+
+  it('falls through a failed provider and preserves its specific failure with the offline result', async () => {
+    const provider: ScannerProvider = {
+      name: 'configured-provider',
+      identify: vi.fn().mockRejectedValue(new Error('Provider returned HTTP 503.')),
+    };
+
+    await expect(identifyImageWithFallback([provider], image)).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'No offline recognition engine is configured. configured-provider failed: Provider returned HTTP 503.',
+      source: 'offline',
+    });
+    expect(provider.identify).toHaveBeenCalledOnce();
+  });
+
+  it('continues from an unavailable provider without labeling it a network failure', async () => {
+    const provider: ScannerProvider = {
+      name: 'local-provider',
+      identify: vi.fn().mockResolvedValue({
+        status: 'unavailable',
+        reason: 'The local model is not installed.',
+      }),
+    };
+
+    await expect(identifyImageWithFallback([provider], image)).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'No offline recognition engine is configured. local-provider is unavailable: The local model is not installed.',
+      source: 'offline',
+    });
+  });
+
+  it('does not mutate Binder, Wishlist, or Cart when recognition falls back offline', async () => {
+    const existingBinder = [{ cardId: 'catalog-card-1', quantity: 2, addedAt: 1 }];
+    const existingWishlist = [{ cardId: 'catalog-card-2', addedAt: 2 }];
+    const existingCart = [{ cardId: 'catalog-card-3', quantity: 1, addedAt: 3 }];
+    store.set('binder', existingBinder);
+    store.set('wishlist', existingWishlist);
+    store.set('cart', existingCart);
+
+    await expect(identifyImageWithFallback([], image)).resolves.toMatchObject({
+      status: 'unavailable',
+      source: 'offline',
+    });
+
+    expect(await getBinder()).toEqual(existingBinder);
+    expect(await getWishlist()).toEqual(existingWishlist);
+    expect(await getCart()).toEqual(existingCart);
+    expect(store.get('binder')).toEqual(existingBinder);
+    expect(store.get('wishlist')).toEqual(existingWishlist);
+    expect(store.get('cart')).toEqual(existingCart);
+    expect([...store.keys()].sort()).toEqual(['binder', 'cart', 'wishlist']);
   });
 
   it('rejects empty or non-image blobs before invoking a provider', async () => {
@@ -132,5 +289,17 @@ describe('scanner recognition boundary', () => {
     });
 
     expect(provider.identify).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid images before invoking any fallback provider', async () => {
+    const provider: ScannerProvider = { name: 'test-provider', identify: vi.fn() };
+    const offlineIdentify = vi.spyOn(offlineScannerProvider, 'identify');
+
+    await expect(identifyImageWithFallback([provider], new Blob(['text'], { type: 'text/plain' })))
+      .resolves.toMatchObject({ status: 'error', retryable: false });
+
+    expect(provider.identify).not.toHaveBeenCalled();
+    expect(offlineIdentify).not.toHaveBeenCalled();
+    offlineIdentify.mockRestore();
   });
 });

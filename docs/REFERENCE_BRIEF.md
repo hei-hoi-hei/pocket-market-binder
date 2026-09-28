@@ -132,14 +132,14 @@ Current implementation status:
 
 - **Capture:** Partially implemented through browser file input with `capture="environment"`; direct/native camera APIs are not present.
 - **Image:** Partially implemented: image validation, temporary preview, replace/remove, and object-URL cleanup.
-- **Recognition boundary:** Implemented as a provider-neutral local-image service with runtime response normalization; no provider is registered.
+- **Recognition boundary:** Implemented as a provider-neutral local-image service with runtime response normalization. An explicit `offline` provider is the final fallback; it requires no credentials, makes no network request, and returns `unavailable` when no offline recognition engine is configured.
 - **Identification:** Missing from production; the installed OCR dependency is used only by the isolated development benchmark.
 - **Candidate generation:** The boundary can return structured unresolved recognition candidates, but no production provider currently generates them.
 - **User review/confirmation:** Missing.
 - **Scanner-to-catalog identity resolution:** Missing.
 - **Scanner-to-Binder/Wishlist/Cart action:** Missing.
 
-Thus the scanner is an active product requirement whose image-acquisition foundation is implemented, while production recognition and downstream candidate/confirmation/collection integration remain unfinished. Manual catalog search is the working fallback. Recognition must produce candidates rather than mutate collection state, and recognition failure must offer recovery such as retry/replace or manual search.
+Thus the scanner is an active product requirement whose image-acquisition foundation and explicit no-network unavailable fallback are implemented, while actual recognition and downstream candidate/confirmation/collection integration remain unfinished. The offline provider is not a recognition engine and does not fabricate candidates or catalog identity. Manual catalog search remains available. Recognition must produce candidates rather than mutate collection state, and recognition failure must offer recovery such as retry/replace or manual search.
 
 The scanner should be developed as a complete workflow rather than as an isolated camera feature.
 
@@ -700,11 +700,12 @@ This section distinguishes **design intent from actual implementation**.
 | Browser image acquisition | **Partially Implemented** | File input uses `accept="image/*"` and `capture="environment"`; browser/device behavior varies. |
 | Direct/native camera API | **Missing** | No `getUserMedia`, `MediaDevices`, `ImageCapture`, or native camera plugin flow. |
 | Recognition boundary | **Implemented** | Validates non-empty image MIME input and normalizes untrusted provider responses into clues, confidence, evidence, and metadata; no catalog IDs or collection mutations. |
-| Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production provider is selected or registered. |
+| Offline recognition fallback | **Implemented** | Explicit `offline` provider requires no credentials/network and returns unavailable without fabricating results when no local engine is configured. |
+| Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production recognition engine is selected or registered. |
 | Candidate generation/review | **Partially Implemented** | Structured unresolved candidates can be normalized from a provider response; no live provider generates them and no review/confirmation UI exists. |
 | Scanner-to-catalog identity | **Missing** | No image-derived clue resolution to canonical catalog ID. |
 | Scanner-to-collection action | **Missing** | Manual collection action exists; scanner results cannot mutate collection. |
-| Scanner failure/manual fallback | **Partially Implemented** | Acquisition errors and manual search path exist; recognition failure states await recognition implementation. |
+| Scanner failure/manual fallback | **Partially Implemented** | Provider-unavailable/error results fall through to the offline unavailable result; manual catalog search remains available. |
 | Sync | **Partial / optional / future-scope** | Infrastructure is incomplete and optional pending an explicit product decision. |
 | Capacitor configuration | **Present** | Configuration/dependencies do not constitute a native app. |
 | Android/iOS project or APK | **Missing** | No native project/build currently confirmed. |

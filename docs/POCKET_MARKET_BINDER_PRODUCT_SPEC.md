@@ -586,7 +586,7 @@ Expected workflow:
         ↓
     Binder
 
-Scanner may require internet.
+Configured recognition providers may require internet. An explicit no-network offline provider is always the final fallback; without a configured local recognition engine it returns an unavailable result and does not fabricate candidates. Manual catalog search remains available.
 
 Manual addition must always remain available.
 

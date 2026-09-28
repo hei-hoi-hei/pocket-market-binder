@@ -320,6 +320,7 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 | Multi-source pricing participation and comparable-observation policy | Future architecture direction; current engine behavior preserved | Pricing decision/implementation phase | Source counts vary per card; future statistical method is not selected |
 | Artwork provider-pool boundary and deterministic candidate selection | Foundation implemented; TCGdex only | Preserve foundation; secondary-source phase remains gated | Exact-printing evidence required; usage status explicit; no secondary source approved |
 | Provider-neutral scanner recognition boundary | Implemented | Phase A | Validates local image input and normalizes unresolved provider candidates; no recognition engine is selected |
+| Explicit offline scanner fallback | Implemented | Recognition provider phase | No credentials or network access; returns truthful unavailable when no offline engine is configured; manual catalog search remains available |
 | Production scanner recognition | Unfinished active requirement | Recognition provider phase | Benchmark and lifecycle evidence required before selecting production recognition approach |
 | Scanner candidates and confirmation | Unfinished V1 / missing | Scanner integration phase | Depends on reliable recognition; provider must not mutate binder |
 | User-owned provider credentials | Missing / committed | Provider configuration phase | Requires secure storage and export exclusion policy |

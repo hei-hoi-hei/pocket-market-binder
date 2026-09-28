@@ -7,6 +7,7 @@ import type {
 } from './types';
 
 const INVALID_PROVIDER_RESULT = 'The scanner provider returned an invalid result.';
+const OFFLINE_UNAVAILABLE_REASON = 'No offline recognition engine is configured.';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -104,11 +105,14 @@ function invalidProviderResult(): ScannerIdentificationResult {
 
 export function normalizeScannerResult(value: unknown): ScannerIdentificationResult {
   if (!isRecord(value) || typeof value.status !== 'string') return invalidProviderResult();
+  const source = readOptionalText(value, 'source');
+  if (source === null) return invalidProviderResult();
+  const sourceMetadata = source ? { source } : {};
 
   switch (value.status) {
     case 'success': {
       if (!Array.isArray(value.candidates)) return invalidProviderResult();
-      if (value.candidates.length === 0) return { status: 'no-match', candidates: [] };
+      if (value.candidates.length === 0) return { status: 'no-match', candidates: [], ...sourceMetadata };
 
       const candidates: ScannerCandidate[] = [];
       for (const valueCandidate of value.candidates) {
@@ -116,7 +120,7 @@ export function normalizeScannerResult(value: unknown): ScannerIdentificationRes
         if (!candidate) return invalidProviderResult();
         candidates.push(candidate);
       }
-      return { status: 'success', candidates };
+      return { status: 'success', candidates, ...sourceMetadata };
     }
     case 'no-match':
       if (
@@ -125,10 +129,10 @@ export function normalizeScannerResult(value: unknown): ScannerIdentificationRes
       ) {
         return invalidProviderResult();
       }
-      return { status: 'no-match', candidates: [] };
+      return { status: 'no-match', candidates: [], ...sourceMetadata };
     case 'unavailable': {
       const reason = readOptionalText(value, 'reason');
-      return reason ? { status: 'unavailable', reason } : invalidProviderResult();
+      return reason ? { status: 'unavailable', reason, ...sourceMetadata } : invalidProviderResult();
     }
     case 'error': {
       const message = readOptionalText(value, 'message');
@@ -140,6 +144,7 @@ export function normalizeScannerResult(value: unknown): ScannerIdentificationRes
         status: 'error',
         message,
         ...(typeof value.retryable === 'boolean' ? { retryable: value.retryable } : {}),
+        ...sourceMetadata,
       };
     }
     default:
@@ -162,6 +167,28 @@ function cancellationResult(): ScannerIdentificationResult {
   return { status: 'error', message: 'Recognition was cancelled.', retryable: false };
 }
 
+async function identifyImageUntilAborted(
+  provider: ScannerProvider,
+  image: Blob,
+  signal?: AbortSignal,
+): Promise<ScannerIdentificationResult> {
+  if (!signal) return identifyImage(provider, image);
+  if (signal.aborted) return cancellationResult();
+
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<ScannerIdentificationResult>((resolve) => {
+    onAbort = () => resolve(cancellationResult());
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+
+  try {
+    return await Promise.race([identifyImage(provider, image, signal), aborted]);
+  } finally {
+    if (onAbort) signal.removeEventListener('abort', onAbort);
+  }
+}
+
 export async function identifyImage(
   provider: ScannerProvider,
   image: Blob,
@@ -174,7 +201,9 @@ export async function identifyImage(
   const input: ScannerIdentificationInput = { image, ...(signal ? { signal } : {}) };
   try {
     const response = await provider.identify(input);
-    return signal?.aborted ? cancellationResult() : normalizeScannerResult(response);
+    return signal?.aborted
+      ? cancellationResult()
+      : { ...normalizeScannerResult(response), source: provider.name };
   } catch (error) {
     if (signal?.aborted) return cancellationResult();
     return {
@@ -183,6 +212,58 @@ export async function identifyImage(
         ? error.message
         : 'The scanner provider failed unexpectedly.',
       retryable: true,
+      source: provider.name,
     };
   }
+}
+
+export const offlineScannerProvider: ScannerProvider = {
+  name: 'offline',
+  async identify() {
+    return {
+      status: 'unavailable',
+      reason: OFFLINE_UNAVAILABLE_REASON,
+    };
+  },
+};
+
+export async function identifyImageWithFallback(
+  providers: readonly ScannerProvider[],
+  image: Blob,
+  signal?: AbortSignal,
+): Promise<ScannerIdentificationResult> {
+  const invalidImage = imageValidationError(image);
+  if (invalidImage) return invalidImage;
+  if (signal?.aborted) return cancellationResult();
+
+  const providerFailures: string[] = [];
+  const configuredProviders = providers.filter((provider) => provider !== offlineScannerProvider);
+
+  for (const provider of [...configuredProviders, offlineScannerProvider]) {
+    const result = await identifyImageUntilAborted(provider, image, signal);
+    if (signal?.aborted) return result;
+    if (result.status === 'success' || result.status === 'no-match') return result;
+
+    if (provider === offlineScannerProvider) {
+      if (result.status === 'unavailable' && providerFailures.length > 0) {
+        return {
+          ...result,
+          reason: `${result.reason} ${providerFailures.join(' ')}`,
+        };
+      }
+      return result;
+    }
+
+    if (result.status === 'unavailable') {
+      providerFailures.push(`${provider.name} is unavailable: ${result.reason}`);
+    } else {
+      providerFailures.push(`${provider.name} failed: ${result.message}`);
+    }
+  }
+
+  return {
+    status: 'unavailable',
+    reason: OFFLINE_UNAVAILABLE_REASON,
+    source: offlineScannerProvider.name,
+  };
 }

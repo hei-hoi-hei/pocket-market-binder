@@ -59,10 +59,14 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 
 ### PARTIAL — ACTIVE PRODUCT TRACK
 
-- Scanner/recognition is an active product requirement and implementation track. Image acquisition includes browser file input, MIME validation, temporary preview, replace/remove, and object-URL cleanup. A provider-agnostic recognition service now validates image input and normalizes provider output into unresolved clues, confidence, evidence, and metadata; it does not resolve catalog identity or mutate collections.
+- Scanner/recognition is an active product requirement and implementation track. Image acquisition includes browser file input, MIME validation, temporary preview, replace/remove, and object-URL cleanup. A provider-agnostic recognition service validates image input and normalizes provider output into unresolved clues, confidence, evidence, and metadata; it does not resolve catalog identity or mutate collections. An explicit `offline` provider is the final fallback; it requires no credentials or network and returns `unavailable` because no local recognition engine is configured.
 - An isolated OCR benchmark and controlled catalog-matching benchmark exist as development tooling only.
 
-No production recognition provider is selected or registered, so identification and live candidate generation remain unavailable. Review/confirmation, catalog identity resolution, and Binder/Wishlist/Cart actions remain unfinished. The browser image picker is not native/direct camera integration.
+No production recognition engine is selected or registered, so identification and live candidate generation remain unavailable. Configured providers that are unavailable or fail are followed by the explicit offline provider; that provider performs no network access and fabricates no recognition result. Review/confirmation, catalog identity resolution, and Binder/Wishlist/Cart actions remain unfinished. The browser image picker is not native/direct camera integration. Manual catalog search remains available.
+
+**Implemented fallback:** a provider-chain boundary that tries configured recognition providers and then the `offline` provider. The offline provider requires no API credentials, makes no HTTP/API request, uploads or persists no image, and returns a normalized `unavailable` result with a clear reason because no local engine is configured. Cancellation is handled at the orchestration boundary, including when an in-flight provider does not settle after cancellation.
+
+**Deferred:** an actual offline OCR/ML engine, production network-provider selection, candidate-review UI, catalog identity resolution, native camera, and automatic Binder/Wishlist/Cart actions. The offline fallback is not a recognition engine.
 
 ### ARTWORK — ACTIVE FOUNDATION
 
@@ -151,14 +155,16 @@ Image acquisition
     ↓
 Provider-neutral scanner service and result normalization
     ↓
-Production recognition provider: not selected or registered
+Configured recognition provider(s): none
     ↓
-Candidate generation: not implemented
+Explicit offline/no-network provider: implemented; no local engine configured
     ↓
-User confirmation: not implemented
+Truthful unavailable result
     ↓
-Binder insertion: not implemented
+Manual catalog search remains available
 ```
+
+Production recognition engine: not selected or registered. Candidate generation, user confirmation, and Binder insertion are not implemented.
 
 Scanner providers produce candidates; they do not directly mutate the binder. Identity verification is metadata verification for known cards, not image recognition.
 
