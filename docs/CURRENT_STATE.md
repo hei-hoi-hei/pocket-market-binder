@@ -51,7 +51,7 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 - **Catalog:** Provider abstraction and category registry exist, but only one live Pokémon provider is registered. There is no source resolver, provider priority, fallback, or enrichment pipeline.
 - **Canonical identity:** Identity types and verification service exist, but no identity provider is registered and no user-facing verification flow exists. Identity verification is not image recognition.
 - **Pricing:** Architecture is substantially present, but most secondary providers are stubs and current TCGdex pricing extraction appears schema-stale/incomplete. Pricing remains separate from canonical `Card`.
-- **Artwork:** URL support and quality fallback exist, but artwork is still coupled to catalog-provided TCGdex URLs. True multi-provider artwork resolution and artwork-specific caching are absent.
+- **Artwork:** A provider-list resolver normalizes candidates and provenance, isolates provider failures, and selects deterministically. Exact-printing status requires evidence; candidates without exact status are not selected. Eligible usage is selectable; unresolved usage is selectable only with explicit provider compatibility; ineligible usage is always rejected. TCGdex alone is configured for unresolved-usage compatibility to preserve existing display, without a rights determination; secondary integration and artwork-specific caching are absent.
 - **Synchronization:** Contracts, outbox, push/provider scaffolding, and migration components exist. Pulled changes, cursor persistence, conflict wiring, account lifecycle, and truthful user-facing sync state are incomplete.
 - **Import/export:** Collection backup flows exist, but deep record validation, atomicity, migration robustness, and sync integration are incomplete.
 - **Mobile UI:** The application is responsive/mobile-capable, but some components become squeezed or compressed at narrow widths. This is targeted UI hardening, not a reason for visual redesign.
@@ -63,6 +63,20 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 - An isolated OCR benchmark and controlled catalog-matching benchmark exist as development tooling only.
 
 No production recognition provider is selected or registered, so identification and live candidate generation remain unavailable. Review/confirmation, catalog identity resolution, and Binder/Wishlist/Cart actions remain unfinished. The browser image picker is not native/direct camera integration.
+
+### ARTWORK — ACTIVE FOUNDATION
+
+- Artwork uses TCGdex-provided URLs today. The resolver now supports a provider pool, candidate provenance, failure isolation, and deterministic selection; production configuration contains only TCGdex. Its artwork usage status remains unresolved without a rights conclusion; explicit provider compatibility preserves existing display. Candidates without evidenced exact-printing verification and candidates explicitly marked ineligible are not selected. Other providers require eligible usage unless explicitly configured for unresolved-usage compatibility; the procedural SVG remains a UI-only placeholder.
+- No secondary artwork provider is approved or integrated. A bounded live TCGdex audit of 38 card IDs found missing `image` fields for all 30 sampled `30th-c` cards (`30th-c-001` through `30th-c-030`); eight control URLs returned HTTP 200. Re-run `node scripts/audit-tcgdex-artwork.mjs` to refresh the sample results.
+- The source investigation in [ARTWORK_SOURCE_INVESTIGATION.md](./ARTWORK_SOURCE_INVESTIGATION.md) found no confirmed or eligible secondary candidate for these records. The audit checks only a curated sample and known placeholder URL patterns; neither it nor public image access establishes full-catalog coverage or image-use rights.
+
+### MULTI-SOURCE EXTERNAL DATA — ARCHITECTURE DIRECTION
+
+- The principle is **multiple external sources, one canonical local truth**. Binder/Wishlist/Cart remain locally owned; TCGdex remains the current catalog/identity authority. External artwork and pricing must not silently replace canonical identity.
+- Additional artwork providers remain future work. The selection foundation enforces exact-printing evidence and rejects explicit usage ineligibility before comparing observable quality/stability. Unresolved usage is not selectable by default; TCGdex alone has explicit compatibility. No secondary provider is approved or integrated.
+- Pricing providers supply attributable observations for an application-derived Binder estimate. Approximately three or four reliable sources may be compared when available, but source participation varies per card and no fixed minimum is required. One observation is a single-source indication, not a robust average.
+- Preserve raw pricing observations and determine comparability before transparent outlier treatment. The future statistical method is undecided; current implemented median/outlier behavior is unchanged.
+- Provider outages, rate limits, API/terms changes, credentials, and per-card coverage are external-data conditions; they must not invalidate local collection data. Generalized dynamic source orchestration/failover is not implemented.
 
 ### DEFERRED
 

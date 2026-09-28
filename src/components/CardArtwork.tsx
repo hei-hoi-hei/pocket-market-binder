@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Card } from '@/types';
-import { getCardTypeStyle, seedGradient } from '@/utils/format';
-import { artworkService } from '@/services/artworkService';
+import { seedGradient } from '@/utils/format';
+import {
+  artworkService,
+  artworkResolutionState,
+  isArtworkUrlFailed,
+  type ArtworkResolution,
+} from '@/services/artworkService';
 
 interface Props {
   card: Card;
@@ -10,13 +15,30 @@ interface Props {
   quality?: 'low' | 'high';
 }
 
+const NO_EXCLUDED_IMAGE_URLS: string[] = [];
+
 /**
  * Enhanced card artwork that displays real TCGdex images with a fallback
  * to the procedural silhouette if the image fails to load or is missing.
  */
 export function CardArtwork({ card, className = '', bare = false, quality = 'low' }: Props) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const style = getCardTypeStyle(card);
+  const [resolutionState, setResolutionState] = useState<{
+    requestKey: string;
+    resolution: ArtworkResolution | null;
+    excludedImageUrls: string[];
+  }>({ requestKey: '', resolution: null, excludedImageUrls: [] });
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const requestKey = JSON.stringify([
+    card.id,
+    card.identity?.tcgdexId,
+    card.imageUrlLow,
+    card.imageUrlHigh,
+    quality,
+  ]);
+  const hasCurrentRequest = resolutionState.requestKey === requestKey;
+  const excludedImageUrls = hasCurrentRequest ? resolutionState.excludedImageUrls : NO_EXCLUDED_IMAGE_URLS;
+  const excludedImageUrlsKey = excludedImageUrls.join('|');
+  const resolution = hasCurrentRequest ? resolutionState.resolution : null;
   const seed = card.artSeed ?? (card.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
   const [c1, c2] = seedGradient(seed);
 
@@ -54,29 +76,76 @@ export function CardArtwork({ card, className = '', bare = false, quality = 'low
     </svg>
   );
 
-  const imageUrl = artworkService.resolve(card, quality);
+  useEffect(() => {
+    if (!hasCurrentRequest) {
+      setResolutionState({ requestKey, resolution: null, excludedImageUrls: [] });
+      return;
+    }
 
-  const content = (imageUrl && !imageFailed) ? (
+    let active = true;
+    void artworkService.resolve(card, quality, excludedImageUrls).then((result) => {
+      if (active) {
+        setResolutionState((current) => current.requestKey === requestKey
+          ? { ...current, resolution: result }
+          : current);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [card, excludedImageUrls, excludedImageUrlsKey, hasCurrentRequest, quality, requestKey]);
+
+  const imageUrl = resolution?.status === 'available' ? resolution.imageUrl : null;
+  const artworkState = artworkResolutionState(resolution);
+  const imageFailed = isArtworkUrlFailed(failedUrl, imageUrl);
+  const showArtwork = Boolean(imageUrl && !imageFailed);
+  const handleImageError = () => {
+    if (!resolution || resolution.status !== 'available' || !imageUrl) return;
+    setFailedUrl(imageUrl);
+    setResolutionState((current) => current.requestKey === requestKey
+      ? {
+          ...current,
+          resolution: null,
+          excludedImageUrls: [...current.excludedImageUrls, imageUrl],
+        }
+      : current);
+  };
+
+  const content = showArtwork && imageUrl ? (
     <img
+      key={`${resolution?.status === 'available' ? resolution.source : ''}:${imageUrl}`}
       src={imageUrl}
       alt={card.name}
       className="w-full h-full object-contain"
-      onError={() => setImageFailed(true)}
+      onError={handleImageError}
       loading="lazy"
     />
   ) : (
-    placeholder
+    <div data-artwork-kind="ui-placeholder" className="h-full w-full">
+      {placeholder}
+    </div>
   );
 
   if (bare) {
-    return <div className={`overflow-hidden ${className}`} style={{ color: c2 }}>{content}</div>;
+    return (
+      <div
+        data-artwork-state={artworkState}
+        className={`overflow-hidden ${className}`}
+        style={{ color: c2 }}
+      >
+        {content}
+      </div>
+    );
   }
 
   return (
-    <div className={`card-frame bg-parchment-100 shadow-sm border border-parchment-200 overflow-hidden ${className}`} style={{ color: c2 }}>
+    <div
+      data-artwork-state={artworkState}
+      className={`card-frame bg-parchment-100 shadow-sm border border-parchment-200 overflow-hidden ${className}`}
+      style={{ color: c2 }}
+    >
       {content}
     </div>
   );
 }
-
-

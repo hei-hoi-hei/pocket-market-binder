@@ -44,6 +44,7 @@ External services provide supplemental information such as:
 ## Decision preservation
 
 - The source architecture is modular and must not be narrowed to TCGdex alone.
+- **Multiple external sources, one canonical local truth:** providers are replaceable sources, not permanent domain authorities. TCGdex remains the current catalog/identity authority; the user's collection remains locally owned.
 - Provider fallback and provider enrichment are distinct behaviors.
 - Free providers are the default; private or paid providers are optional BYO-credential sources.
 - Shared paid credentials, paid-access proxying, quota bypass, and mandatory paid services are prohibited.
@@ -56,6 +57,8 @@ External services provide supplemental information such as:
 - Responsive hardening must not become an unsolicited visual redesign.
 
 The application should continue functioning when external services fail.
+
+Provider failure is an external-data problem, not a collection-data problem. Source availability, terms, coverage, quality, and authentication can change independently. Alternative sources may participate where the domain supports them; do not assume a provider outage invalidates local data or that one provider must always be primary.
 
 ---
 
@@ -206,6 +209,25 @@ Reason:
 Providers can change pricing, limits, APIs, availability, or terms.
 
 The application should remain replaceable and maintainable.
+
+Pricing providers form a replaceable source pool. They supply observations, not an authoritative final price. The application derives its own Binder market estimate from observations that have been verified as comparable and retains the original observations and provenance. Approximately three or four reliable sources may be compared when available, but this is not a fixed count or minimum requirement: evidence may vary per card from several sources to one indication or no estimate.
+
+The future comparison must verify exact printing/variant and normalize relevant condition, grading, language, market/listing type, and currency dimensions where data permits. Preserve unusual observations and their sources; assess comparability before outlier treatment, and do not discard a legitimate premium merely because it is high. The future method must be transparent and deterministic. Median, trimmed mean, standard-deviation filtering, or another specific method is not selected by this design decision. Current implemented pricing behavior is described separately in the architecture/status documentation.
+
+## 8A. Artwork Source-Pool Boundary
+
+**Implemented foundation:** The artwork resolver accepts a provider list, normalizes candidate provenance, isolates failures, and deterministically selects candidates with evidenced exact-printing verification. Eligible usage is selectable; unresolved usage requires an explicit provider compatibility setting; ineligible usage is always rejected. TCGdex is the only configured production provider and explicitly opts into unresolved-usage compatibility to preserve current display while its usage eligibility remains unresolved. This is not a rights determination. Additional provider integration and verified usage eligibility remain future work.
+
+Artwork providers supply candidate images; they do not own or replace canonical card identity. TCGdex remains the current catalog/identity authority. For each canonical identity, the future artwork resolution should establish:
+
+1. whether the candidate is for the exact printing;
+2. whether the image is actually available;
+3. whether artwork usage/display is sufficiently supported by applicable terms;
+4. which eligible candidate is preferable by observable quality and URL/source stability.
+
+Printing verification is a selection gate. Explicitly ineligible usage is rejected; unresolved usage remains distinct from eligible and is not presented as permission. Unresolved usage is not selectable by default and requires explicit provider compatibility configuration; TCGdex alone currently has that compatibility to preserve its existing display. Do not select an image merely because its URL is public or its database/API is open-source. Keep source identity, exact-printing evidence, image reference, usage basis, quality/resolution, and retrieval time with the selected artwork where available. If no candidate passes printing verification and the configured usage policy, retain the UI placeholder instead of guessing a similar printing.
+
+No secondary artwork provider is currently approved or integrated. See [ARTWORK_SOURCE_INVESTIGATION.md](./ARTWORK_SOURCE_INVESTIGATION.md) for bounded evidence for `30th-c-001` through `30th-c-030`.
 
 ---
 
@@ -855,6 +877,8 @@ Priority order:
 | Provider abstraction | ACCEPTED |
 | Own market-reference calculation | ACCEPTED |
 | Cached pricing | ACCEPTED |
+| Multiple external sources, one canonical local truth | ACCEPTED; artwork provider-pool foundation implemented, generalized orchestration remains future |
+| Secondary artwork source | NOT APPROVED; bounded evidence recorded in `ARTWORK_SOURCE_INVESTIGATION.md` |
 | Scanner deferred | Historical decision; superseded by current active scanner requirement (production recognition unfinished) |
 | Cloud sync deferred | Historical decision; synchronization remains partial and optional/future pending an explicit product decision |
 | Multi-TCG support deferred | ACCEPTED |

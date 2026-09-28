@@ -38,6 +38,17 @@ Higher-level evidence overrides lower-level evidence when they conflict. Documen
 - **Implementation status:** Determined from code and tests, not from this document. Current verified state is summarized in section 15.
 - **Future/deferred:** Additional collectible categories and themes are future extensibility. Sync is optional/future scope pending an explicit product decision. Native Android packaging is downstream of the web/PWA experience. Production scanner recognition is unfinished, not removed from scope.
 
+## Multiple external sources, one canonical local truth
+
+This is an architectural direction, not a claim that generalized source orchestration is implemented. External providers are replaceable sources: availability, coverage, terms, quality, and authentication can change. A provider failure is an external-data problem, not a collection-data problem.
+
+- **Collection:** Binder, Wishlist, and Cart remain locally owned source of truth.
+- **Canonical identity:** TCGdex remains the current catalog/identity authority. Artwork and pricing sources must not silently replace canonical identity.
+- **Artwork:** provider-pool normalization, failure isolation, explicit printing/usage status, provenance, and deterministic candidate selection are implemented. TCGdex is the only configured production provider. Candidates without evidenced exact-printing verification and candidates explicitly marked ineligible are not selected. Eligible usage is selectable; unresolved usage is selectable only for a provider with an explicit compatibility setting. TCGdex has that explicit setting to preserve current display while its usage eligibility remains **unresolved**; this is not a permission determination. No secondary provider is approved or integrated.
+- **Pricing (future direction):** providers supply attributable observations for an application-derived estimate. Compare approximately three or four reliable sources when available, without requiring a fixed count or minimum. Preserve raw observations and determine comparability before transparent outlier treatment; one observation is a single-source indication, not a robust average. The future statistical method is undecided.
+
+The current secondary-artwork evidence is bounded to `30th-c-001` through `30th-c-030` and recorded in [ARTWORK_SOURCE_INVESTIGATION.md](./ARTWORK_SOURCE_INVESTIGATION.md).
+
 ---
 
 # 2. Product Definition
@@ -679,8 +690,8 @@ This section distinguishes **design intent from actual implementation**.
 | Binder, quantities, wishlist, cart | **Implemented** | Core manual collection workflows exist. |
 | TCGdex catalog/search | **Implemented** | One Pokémon catalog provider is wired. |
 | Provider ecosystem | **Partially Implemented** | Abstractions exist; general source registry, capability/priority selection, fallback, and enrichment are not implemented. |
-| Artwork | **Partially Implemented** | Catalog image URLs and UI fallback exist; multi-provider artwork resolution is absent. |
-| Price consolidation/attribution | **Partially Implemented** | Observation model and engine exist; live coverage is limited and TCGdex extraction needs verification against the actual response shape. |
+| Artwork | **Partially Implemented** | Provider-pool candidate normalization, failure isolation, evidenced exact-printing gate, explicit usage state, deterministic quality/stability selection, and provenance are implemented; TCGdex alone is configured in production. TCGdex usage remains unresolved and existing image display is preserved without claiming rights. No secondary source is approved. The bounded investigation found no image field for `30th-c-001` through `30th-c-030`; see [ARTWORK_SOURCE_INVESTIGATION.md](./ARTWORK_SOURCE_INVESTIGATION.md). |
+| Price consolidation/attribution | **Partially Implemented** | Current observation model and engine exist; live coverage is limited and TCGdex extraction needs verification against the actual response shape. Multi-source participation and revised outlier handling are future direction; the current implemented method is not implicitly replaced. |
 | Offline/local-first behavior | **Partially Implemented** | Local collection/cache paths exist; uncached external data needs connectivity and full offline workflows are not established by build success alone. |
 | Non-Pokémon extensibility | **Partially Implemented** | Architectural/category foundation only; no other live catalog category. |
 | Water/Fire/Grass theme direction | **Direction established; selector unverified** | Canonical starter/default themes; no selectable theme system confirmed in source. |

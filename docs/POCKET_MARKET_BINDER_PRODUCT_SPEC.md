@@ -393,39 +393,33 @@ The application must not depend on paid Scrydex functionality.
 
 The application should calculate its own normalized market reference rather than blindly displaying whichever provider responds first.
 
-Pipeline:
+Future multi-source pipeline:
 
-    Provider data
+    Pricing Source Pool
           ↓
-    Normalize
+    Attributable Price Observations
           ↓
-    Validate
+    Exact-Printing / Variant Verification
           ↓
-    Match card identity
+    Condition / Market-Type Normalization
           ↓
-    Filter obvious outliers
+    Currency Normalization
           ↓
-    Calculate reference
+    Outlier Detection / Treatment
           ↓
-    Assign confidence
+    Consolidated Binder Market Estimate
           ↓
-    Cache
+    Source Breakdown + Provenance
           ↓
-    Display
+    Cache / Display
 
-Initial approach:
+The artwork resolver now provides a provider-list boundary, candidate normalization, failure isolation, and deterministic selection. TCGdex remains the only configured production artwork provider; its exact-printing status is based on the mapped canonical TCGdex record, while usage eligibility is unresolved. TCGdex has an explicit compatibility setting that preserves existing display without making a permission determination. For other providers, unresolved usage is not selectable unless the same explicit compatibility setting is deliberately enabled; explicitly ineligible usage is always rejected. No secondary provider is approved.
 
-1. Match the exact card where possible.
-2. Match set/card number.
-3. Match printing/variant.
-4. Match language.
-5. Match condition category.
-6. Normalize currencies.
-7. Remove obvious outliers using a robust statistical method.
-8. Use a median or similar robust reference.
-9. Track source count.
-10. Track update time.
-11. Store methodology version.
+The pricing pipeline above is future design direction, not a claim that every stage is currently implemented. Preserve raw observations with source and retrieval/observation provenance. Verify exact printing/variant and comparability, including condition, grading, language, currency, and market/listing type where the source supplies those details.
+
+The design should compare approximately three or four reliable sources when available, without requiring an exact provider count or minimum. The participating sources can vary per card. Multiple comparable observations provide broader evidence; two indicate reduced evidence; one is a single-source indication, not a statistically robust average; zero means no current estimate.
+
+Outlier treatment must be transparent and deterministic, assess comparability first, and retain the original observations. Do not discard an unusual observation without recording why, or reject a legitimate premium solely because it is high. The future statistical method is undecided; this section does not select a median, trimmed mean, standard-deviation threshold, or other specific method. The current implementation's existing median/outlier behavior remains the code status until a separate implementation decision changes it.
 
 Do not claim that this exactly reproduces Collectr's proprietary methodology.
 
@@ -464,10 +458,12 @@ Each market reference should have a confidence/data availability indicator.
 
 Examples:
 
-    High confidence — 4 sources
-    Moderate confidence — 2 sources
-    Limited data — 1 source
+    Multi-source evidence — several comparable sources
+    Reduced evidence — two comparable sources
+    Single-source indication — one source
     Price unavailable — no usable data
+
+These are qualitative evidence descriptions, not a rule that source count alone determines confidence. One observation must not be presented as a statistically robust market average.
 
 Confidence is informational and must not be presented as an investment recommendation.
 

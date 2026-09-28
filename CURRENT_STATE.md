@@ -9,8 +9,8 @@ The repository is stable and buildable, with core collection workflows implement
 - **Version:** `1.0.0` (`package.json`)
 - **Scanner phase:** Phase A provider-agnostic recognition boundary implemented; no production recognition provider is selected or registered.
 - **Core:** Binder, wishlist, cart, quantities, manual search, IndexedDB persistence, and PWA shell are implemented.
-- **Catalog/artwork:** TCGdex Pokémon catalog integration and catalog-backed artwork are present; the broader multi-provider resolver is not.
-- **Pricing:** Consolidation and attribution foundations exist; live source coverage is limited and TCGdex response extraction requires verification.
+- **Catalog/artwork:** TCGdex remains the current catalog/identity authority. The artwork resolver supports a provider list, explicit exact-printing/usage states, provider-failure isolation, deterministic candidate selection, provenance, and alternate TCGdex image quality. TCGdex is the only configured production provider and explicitly allows unresolved-usage display for compatibility; this is not a rights claim. Other providers require eligible usage unless explicitly configured otherwise, and explicitly ineligible candidates are rejected. The bounded evidence for 30 missing-image records in `30th-c` is in [docs/ARTWORK_SOURCE_INVESTIGATION.md](docs/ARTWORK_SOURCE_INVESTIGATION.md).
+- **Pricing:** The current consolidation engine and attribution foundations exist; live source coverage is limited and TCGdex response extraction requires verification. Future source-pool participation and outlier policy do not change current behavior; the future statistical method remains undecided.
 - **Scanner:** Active product requirement. Browser image acquisition and a provider-agnostic recognition boundary exist; production recognition, live candidate generation, review, catalog resolution, and collection actions are unfinished.
 - **Synchronization:** Partial infrastructure; optional/future scope pending an explicit product decision. Local collection use does not depend on it.
 - **Native packaging:** Capacitor configuration exists; no Android/iOS project or APK is present.

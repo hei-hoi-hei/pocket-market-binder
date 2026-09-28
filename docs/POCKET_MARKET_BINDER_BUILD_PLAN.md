@@ -262,10 +262,47 @@ External services connect through adapters:
 
 The application is designed around a modular source/provider ecosystem rather than a single vendor. The eventual source registry covers catalog, pricing, artwork, and identification providers.
 
+Design principle: **multiple external sources, one canonical local truth.** External providers are replaceable; availability, coverage, terms, quality, and authentication can change. Provider failure is an external-data problem, not a collection-data problem. Binder/Wishlist/Cart remain locally owned; TCGdex remains the current catalog/identity authority. Artwork and pricing sources do not silently replace canonical card identity.
+
 Provider behavior has two distinct forms:
 
 - **Fallback:** try another provider when the current provider cannot satisfy a request.
 - **Enrichment:** combine providers when one source supplies missing or additional information.
+
+These are possible source behaviors, not a claim that generalized source orchestration or dynamic failover currently exists. Do not hard-code one universal primary/fallback order where per-card coverage and quality must be evaluated.
+
+Implemented artwork-pool foundation: the resolver accepts a list of providers, isolates provider failures, normalizes candidates with provenance, and deterministically selects candidates with evidenced exact-printing verification. TCGdex is the only configured production provider. Eligible usage is selectable; unresolved usage requires an explicit provider compatibility setting; ineligible usage is rejected. TCGdex explicitly has that compatibility to preserve existing display while usage remains unresolved, without making a rights determination.
+
+Future additional artwork sources and selection evidence:
+
+```text
+Canonical Card Identity
+    → Candidate Artwork Sources
+    → Exact-Printing Verification
+    → Artwork Usage Eligibility
+    → Eligible Candidate Set
+    → Deterministic Quality/Availability Selection
+    → Selected Artwork + Provenance
+```
+
+Eligibility precedes quality: establish exact-printing identity and image availability; usage must be explicitly eligible unless a provider has explicit unresolved-usage compatibility, and explicitly ineligible candidates are always rejected. Only then compare crop/orientation, readability, resolution, and URL/source stability. Preserve candidate evidence and provenance. Do not use an unsupported numeric score or substitute a similar printing. If no candidate passes its configured policy, retain the UI placeholder. No secondary artwork source is approved; see [ARTWORK_SOURCE_INVESTIGATION.md](./ARTWORK_SOURCE_INVESTIGATION.md) for the bounded `30th-c-001`–`30th-c-030` investigation.
+
+Future pricing source participation:
+
+```text
+Pricing Source Pool
+    → Attributable Observations
+    → Exact-Printing / Variant Verification
+    → Condition / Market-Type Normalization
+    → Currency Normalization
+    → Outlier Detection / Treatment
+    → Consolidated Binder Market Estimate
+    → Source Breakdown + Provenance
+```
+
+Compare approximately three or four reliable sources when available, without requiring a fixed count or minimum. Source participation can vary per card: several comparable observations provide multi-source evidence; two indicate reduced evidence; one is a single-source indication; zero means no current estimate. Preserve raw observations, assess comparability before outlier treatment, and do not discard a legitimate premium solely because it is high. The future statistical method is undecided.
+
+Artwork provenance should eventually retain provider/source identity, exact-printing evidence, image URL/reference, usage basis, observable quality/resolution, and retrieval time. Pricing provenance should retain provider/source identity, observed amount/currency, condition, variant/printing, market/listing type, source reference, and observation/retrieval times.
 
 Free providers are the default. Optional user-owned paid/private providers may be configured only with the user's legitimate credentials where permitted. Shared credentials, credential redistribution, paid-access proxying, quota bypass, and mandatory paid services are prohibited. Credentials are separate from cards, collections, catalog, artwork, pricing observations, and ordinary exports.
 
@@ -280,7 +317,9 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 | Catalog provider abstraction | Partial | Provider clarification | Existing registry is not a source resolver |
 | Multiple catalog providers | Missing / committed | Provider phase | Requires resolver, priority, fallback, and enrichment decisions |
 | Pricing aggregation and cache | Partial / substantially present | Pricing phase | Engine exists; live adapters and TCGdex schema need reconciliation |
-| Provider-neutral scanner recognition boundary | Implemented; awaiting review/commit | Phase A | Validates local image input and normalizes unresolved provider candidates; no recognition engine is selected |
+| Multi-source pricing participation and comparable-observation policy | Future architecture direction; current engine behavior preserved | Pricing decision/implementation phase | Source counts vary per card; future statistical method is not selected |
+| Artwork provider-pool boundary and deterministic candidate selection | Foundation implemented; TCGdex only | Preserve foundation; secondary-source phase remains gated | Exact-printing evidence required; usage status explicit; no secondary source approved |
+| Provider-neutral scanner recognition boundary | Implemented | Phase A | Validates local image input and normalizes unresolved provider candidates; no recognition engine is selected |
 | Production scanner recognition | Unfinished active requirement | Recognition provider phase | Benchmark and lifecycle evidence required before selecting production recognition approach |
 | Scanner candidates and confirmation | Unfinished V1 / missing | Scanner integration phase | Depends on reliable recognition; provider must not mutate binder |
 | User-owned provider credentials | Missing / committed | Provider configuration phase | Requires secure storage and export exclusion policy |
@@ -423,20 +462,19 @@ Example:
 
 # 11. Pricing Engine
 
-The pricing engine should:
+The current implementation includes normalization, median/outlier handling, confidence, source count, timestamps, and caching. This records existing code behavior; live source coverage and adapter correctness remain partial.
+
+The future multi-source design should:
 
 1. collect available provider observations
-2. normalize them
-3. validate card identity
-4. normalize currency
-5. filter obvious outliers
-6. calculate a robust market reference
-7. assign confidence
-8. record source count
-9. record update timestamp
-10. cache the result
+2. verify exact printing/variant and comparability
+3. normalize dimensions such as condition, market/listing type, and currency where data permits
+4. apply transparent, deterministic outlier treatment after assessing comparability
+5. calculate an application-derived market estimate
+6. preserve raw observations and provenance, with source count and timestamps
+7. expose evidence/confidence and cache the result
 
-Store methodology version.
+The future statistical method is undecided. Do not interpret this roadmap as a decision to retain or replace the current median/outlier method.
 
 Example:
 
