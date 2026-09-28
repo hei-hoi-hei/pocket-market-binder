@@ -280,7 +280,8 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 | Catalog provider abstraction | Partial | Provider clarification | Existing registry is not a source resolver |
 | Multiple catalog providers | Missing / committed | Provider phase | Requires resolver, priority, fallback, and enrichment decisions |
 | Pricing aggregation and cache | Partial / substantially present | Pricing phase | Engine exists; live adapters and TCGdex schema need reconciliation |
-| Production scanner recognition | Unfinished active requirement | Recognition phase | Benchmark and lifecycle evidence required before selecting production recognition approach |
+| Provider-neutral scanner recognition boundary | Implemented; awaiting review/commit | Phase A | Validates local image input and normalizes unresolved provider candidates; no recognition engine is selected |
+| Production scanner recognition | Unfinished active requirement | Recognition provider phase | Benchmark and lifecycle evidence required before selecting production recognition approach |
 | Scanner candidates and confirmation | Unfinished V1 / missing | Scanner integration phase | Depends on reliable recognition; provider must not mutate binder |
 | User-owned provider credentials | Missing / committed | Provider configuration phase | Requires secure storage and export exclusion policy |
 | Synchronization infrastructure | Partial / optional / future scope | Product decision gate | Scope requires explicit decision; pull, cursor, conflict wiring, and account lifecycle remain incomplete |

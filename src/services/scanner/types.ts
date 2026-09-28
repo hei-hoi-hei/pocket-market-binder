@@ -1,14 +1,17 @@
-export type ScannerConfidence = 'high' | 'medium' | 'low';
-
 export interface ScannerEvidence {
   label: string;
   value: string;
+  confidence?: number;
 }
 
 export interface ScannerCandidate {
-  cardId: string;
-  confidence?: ScannerConfidence;
+  name?: string;
+  collectorNumber?: string;
+  setCode?: string;
+  /** A provider score normalized to the inclusive range 0..1. */
+  confidence?: number;
   evidence?: ScannerEvidence[];
+  metadata?: Record<string, string | number | boolean>;
 }
 
 export interface ScannerIdentificationInput {
@@ -37,5 +40,6 @@ export type ScannerIdentificationResult =
 
 export interface ScannerProvider {
   name: string;
-  identify(input: ScannerIdentificationInput): Promise<ScannerIdentificationResult>;
+  /** Providers must process the image transiently and must not upload, persist, or mutate collection data. */
+  identify(input: ScannerIdentificationInput): Promise<unknown>;
 }

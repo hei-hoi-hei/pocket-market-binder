@@ -121,8 +121,9 @@ Current implementation status:
 
 - **Capture:** Partially implemented through browser file input with `capture="environment"`; direct/native camera APIs are not present.
 - **Image:** Partially implemented: image validation, temporary preview, replace/remove, and object-URL cleanup.
-- **Identification:** Missing from production.
-- **Candidate generation:** Missing from production.
+- **Recognition boundary:** Implemented as a provider-neutral local-image service with runtime response normalization; no provider is registered.
+- **Identification:** Missing from production; the installed OCR dependency is used only by the isolated development benchmark.
+- **Candidate generation:** The boundary can return structured unresolved recognition candidates, but no production provider currently generates them.
 - **User review/confirmation:** Missing.
 - **Scanner-to-catalog identity resolution:** Missing.
 - **Scanner-to-Binder/Wishlist/Cart action:** Missing.
@@ -687,8 +688,9 @@ This section distinguishes **design intent from actual implementation**.
 | Unrestricted custom color editor | **Outside current scope** | Curated themes are preferred. |
 | Browser image acquisition | **Partially Implemented** | File input uses `accept="image/*"` and `capture="environment"`; browser/device behavior varies. |
 | Direct/native camera API | **Missing** | No `getUserMedia`, `MediaDevices`, `ImageCapture`, or native camera plugin flow. |
-| Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production provider is wired. |
-| Candidate generation/review | **Missing** | No production candidate results or confirmation UI. |
+| Recognition boundary | **Implemented** | Validates non-empty image MIME input and normalizes untrusted provider responses into clues, confidence, evidence, and metadata; no catalog IDs or collection mutations. |
+| Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production provider is selected or registered. |
+| Candidate generation/review | **Partially Implemented** | Structured unresolved candidates can be normalized from a provider response; no live provider generates them and no review/confirmation UI exists. |
 | Scanner-to-catalog identity | **Missing** | No image-derived clue resolution to canonical catalog ID. |
 | Scanner-to-collection action | **Missing** | Manual collection action exists; scanner results cannot mutate collection. |
 | Scanner failure/manual fallback | **Partially Implemented** | Acquisition errors and manual search path exist; recognition failure states await recognition implementation. |

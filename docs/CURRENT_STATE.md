@@ -59,10 +59,10 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 
 ### PARTIAL — ACTIVE PRODUCT TRACK
 
-- Scanner/recognition is an active product requirement and implementation track. The committed image-acquisition foundation includes browser file input, MIME validation, temporary preview, replace/remove, object-URL cleanup, and a `ScannerProvider` type contract.
+- Scanner/recognition is an active product requirement and implementation track. Image acquisition includes browser file input, MIME validation, temporary preview, replace/remove, and object-URL cleanup. A provider-agnostic recognition service now validates image input and normalizes provider output into unresolved clues, confidence, evidence, and metadata; it does not resolve catalog identity or mutate collections.
 - An isolated OCR benchmark and controlled catalog-matching benchmark exist as development tooling only.
 
-Production recognition and all downstream scanner stages remain unfinished; the browser image picker is not native/direct camera integration.
+No production recognition provider is selected or registered, so identification and live candidate generation remain unavailable. Review/confirmation, catalog identity resolution, and Binder/Wishlist/Cart actions remain unfinished. The browser image picker is not native/direct camera integration.
 
 ### DEFERRED
 
@@ -75,7 +75,7 @@ Production recognition and all downstream scanner stages remain unfinished; the 
 - Distinct provider fallback and enrichment semantics.
 - Multiple live catalog providers and catalog resolver.
 - BYO-credential configuration for legitimately user-owned private providers.
-- Production scanner preprocessing, OCR/recognition, catalog matching, candidate generation, evidence/confidence, user review/confirmation, catalog identity resolution, and Binder/Wishlist/Cart actions.
+- Production scanner preprocessing and OCR/recognition provider, catalog matching, live candidate generation, user review/confirmation, catalog identity resolution, and Binder/Wishlist/Cart actions. The provider-neutral recognition boundary and response normalization are implemented but do not themselves identify cards.
 - TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
 - Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
 - Narrow-width audit and targeted responsive fixes without redesign.
@@ -135,9 +135,9 @@ Pricing observations remain source-, marketplace-, currency-, variant-, and time
 ```text
 Image acquisition
     ↓
-ScannerProvider contract
+Provider-neutral scanner service and result normalization
     ↓
-Recognition: not production-ready
+Production recognition provider: not selected or registered
     ↓
 Candidate generation: not implemented
     ↓
@@ -173,8 +173,9 @@ Future coding agents must preserve:
 1. Accept this documentation baseline and resolve the synchronization release-scope decision.
 2. Reconcile provider/source architecture before adding providers.
 3. Repair and test the TCGdex pricing adapter without changing `Card`.
-4. Continue isolated OCR/preprocessing evaluation.
-5. Implement scanner candidates and confirmation only after recognition evidence supports it.
-6. Complete synchronization only if product scope is explicitly confirmed.
-7. Harden narrow mobile layouts with targeted corrections.
-8. Create native projects only after the PWA baseline is stable.
+4. Review and commit the verified recognition boundary before starting another scanner slice.
+5. Select and integrate a local recognition provider only after OCR/preprocessing evidence supports that choice.
+6. Implement catalog matching, candidate review, and confirmation only after the provider can produce useful evidence.
+7. Complete synchronization only if product scope is explicitly confirmed.
+8. Harden narrow mobile layouts with targeted corrections.
+9. Create native projects only after the PWA baseline is stable.
