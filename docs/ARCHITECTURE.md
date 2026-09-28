@@ -54,7 +54,9 @@ The application follows a clean layered architecture separating UI components, R
 - Storage errors in pricing cannot destroy or mutate user collection data.
 
 ## Pricing Architecture (V1 Median Engine)
-Implemented in `pricingService.ts`:
+The consolidation engine and observation model exist in `pricingService.ts`, but live source coverage is limited. Several adapters are stubs and the current TCGdex extraction requires verification against the actual detailed response shape.
+
+Implemented engine behavior:
 1. **Collection:** Gathers observations via `Promise.allSettled` for provider independence.
 2. **Filtering:** Removes invalid prices and observations older than `maxObservationAgeMs`.
 3. **Currency Normalization:** Converts observation prices to target currency (USD) using static rates (`CURRENCY_CONVERSION_TO_USD`). Original `PriceObservation` values are never mutated.
@@ -63,4 +65,6 @@ Implemented in `pricingService.ts`:
 6. **Confidence Evaluation:** Evaluates multi-factor confidence (`high`, `medium`, `low`) based on diversity, agreement (max deviation), and freshness ratio.
 
 ## Offline & Local-First Behavior
-- Fully functional without an internet connection. Catalog searches fall back to IndexedDB cache; pricing references fall back to cached `PriceReference` or derived observations.
+- User collection data is stored locally and local collection actions do not depend on provider connectivity.
+- Catalog searches can use cached cards; uncached card data and live pricing require network access.
+- Pricing can fall back to cached references or observations where available. This does not establish complete offline provider coverage.

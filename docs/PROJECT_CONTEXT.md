@@ -23,20 +23,21 @@ Pocket Market Binder is a mobile-first Progressive Web App (PWA) designed as a d
 ## Major Product Goals
 - **Local-First Architecture:** User collection data is fully owned and stored client-side in IndexedDB.
 - **Operating Cost Target:** ₱0 (no paid APIs, paid databases, authentication servers, or paid hosting).
-- **Offline Resilience:** The application remains fully functional without an internet connection, falling back to local caches for catalog data and pricing references.
+- **Offline Resilience:** Local collection data remains available without network access. Uncached catalog cards and live external pricing require connectivity; offline completeness is not implied.
 - **Robust Pricing Engine:** Aggregates market observations through a versioned median calculation algorithm with multi-factor confidence scoring.
 
 ## Important Constraints
 - **Zero Cost:** Must operate entirely at ₱0. Free tiers of public APIs are permitted only when their terms allow.
 - **No Mandatory Backend:** Operates as a static PWA.
-- **No Authentication:** V1 excludes user accounts, logins, and cloud sync.
+- **No Mandatory Authentication or Backend:** Local collection use must not require an account or sync. Sync infrastructure is partial and remains optional/future scope pending an explicit product decision.
 
 ## What the Project Explicitly Is NOT Trying To Do
 - Not a commercial marketplace or trading platform.
 - Not an official Pokémon product or affiliate.
 - Not an investment portfolio tracker or financial advisory tool.
-- Not a card scanning/OCR tool in V1 (scanning is postponed).
+- Scanner/recognition is an active product requirement and implementation track, but is not complete: browser image acquisition exists partially; production recognition, candidate review, catalog identity resolution, and collection integration are unfinished.
 
 ## Current Overall Development Status
 - **Implemented & Verified:** Core PWA shell, responsive navigation, IndexedDB persistence, collection management (binder, wishlist, cart), TCGdex catalog search and detail views, artwork resolution, and the V1 Pricing Foundation (provider interfaces, currency normalization, median aggregation, outlier filtering, multi-factor confidence, provider isolation, and stubbed adapters).
-- **Pending/Future Work:** Real pricing provider API integrations, optional OCR card scanning, and cloud synchronization.
+- **Partially Implemented / Unfinished:** Pricing consolidation foundation exists, but live provider coverage is limited and the TCGdex pricing response extraction needs verification. Scanner acquisition is present; recognition and downstream stages remain unfinished.
+- **Optional / Future Scope:** Synchronization remains optional pending a product decision. The local-first Binder does not depend on it.

@@ -570,9 +570,9 @@ The cart item may then be removed or marked purchased.
 
 # 24. Scanner
 
-Scanning is not a V1 blocker.
+**Historical scope note:** This specification originally described scanning as not a V1 blocker. Current product direction supersedes that scope status: scanner/recognition is an active product requirement and implementation track. The committed browser image-acquisition foundation is partial; production recognition and candidate-to-collection workflow are unfinished.
 
-The application should support a future ScannerProvider:
+The application should support a `ScannerProvider`:
 
 ```javascript
 scanner.identify(image)

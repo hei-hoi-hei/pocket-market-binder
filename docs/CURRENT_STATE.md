@@ -57,21 +57,15 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 - **Mobile UI:** The application is responsive/mobile-capable, but some components become squeezed or compressed at narrow widths. This is targeted UI hardening, not a reason for visual redesign.
 - **Capacitor:** Configuration and dependencies exist, but no native project, plugin, permission, or APK build exists.
 
-### IN PROGRESS
+### PARTIAL — ACTIVE PRODUCT TRACK
 
-- Uncommitted scanner image-acquisition work in the working tree:
-  - camera/file input
-  - image validation
-  - preview, replace, and remove behavior
-  - object-URL lifecycle cleanup
-  - frozen `ScannerProvider` type boundary
-- Isolated OCR benchmark and controlled catalog-matching benchmark.
+- Scanner/recognition is an active product requirement and implementation track. The committed image-acquisition foundation includes browser file input, MIME validation, temporary preview, replace/remove, object-URL cleanup, and a `ScannerProvider` type contract.
+- An isolated OCR benchmark and controlled catalog-matching benchmark exist as development tooling only.
 
-This work is not released scanner recognition.
+Production recognition and all downstream scanner stages remain unfinished; the browser image picker is not native/direct camera integration.
 
 ### DEFERRED
 
-- Production OCR and card recognition: deferred until benchmark evidence supports a reliable local path.
 - Paid/authenticated pricing providers: deferred because of credentials, terms, cost, or client-side security constraints.
 - Native Android/iOS packaging: deferred until PWA behavior and product scope are stable; Capacitor configuration alone is not native support.
 
@@ -81,16 +75,15 @@ This work is not released scanner recognition.
 - Distinct provider fallback and enrichment semantics.
 - Multiple live catalog providers and catalog resolver.
 - BYO-credential configuration for legitimately user-owned private providers.
-- Production scanner provider, candidate generation, confidence/evidence review, and confirmation workflow.
-- Full bidirectional synchronization: pull reconciliation, cursor persistence, conflict resolution, reliable outbox behavior, account/auth lifecycle, status, errors, and multi-device behavior.
+- Production scanner preprocessing, OCR/recognition, catalog matching, candidate generation, evidence/confidence, user review/confirmation, catalog identity resolution, and Binder/Wishlist/Cart actions.
 - TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
-- Scanner preprocessing, OCR/recognition, catalog matching, candidate generation, evidence/confidence, user confirmation, and Binder insertion.
 - Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
 - Narrow-width audit and targeted responsive fixes without redesign.
 - Robust provider capability/health reporting.
 
 ### OPTIONAL / FUTURE
 
+- Synchronization remains optional/future scope pending an explicit product decision. Existing infrastructure is partial; local-first collection functionality does not depend on sync.
 - Additional TCG categories.
 - Additional artwork sources and prefetching.
 - User-facing pricing refresh/source controls.
@@ -104,7 +97,6 @@ This work is not released scanner recognition.
 ### UNKNOWN
 
 - Whether Capacitor setup was intentionally staged or simply incomplete.
-- Whether synchronization belongs in V1 or a later release. This requires a product decision.
 - Whether broader provider enrichment was committed scope or architectural aspiration.
 
 No major capability has clear evidence of being intentionally removed.
@@ -121,7 +113,7 @@ Source Registry
     └── Identification: local/free, optional additional providers
 ```
 
-The future source system must distinguish:
+The source system must distinguish:
 
 - **Fallback:** Provider A cannot satisfy a request, so Provider B is attempted.
 - **Enrichment:** Provider A supplies some information and Provider B supplies missing or additional information.

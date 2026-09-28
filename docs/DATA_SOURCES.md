@@ -11,6 +11,7 @@ This document inventories external data sources and providers used, planned, or 
 - **Network Requests:** Makes live network requests (`https://api.tcgdex.net/v2/en`) when online and when the local cache (`cached_cards_store`) is empty or during searches.
 - **API Reference:** [TCGdex API Documentation](https://api.tcgdex.net/v2/en) (Public free API).
 - **Limitations & Assumptions:** Relies on public API availability; offline fallback gracefully falls back to IndexedDB local cache.
+- **Pricing note:** Detailed card responses may include market pricing, but the current TCGdex pricing extraction in `tcgdexProvider.ts` requires verification against the live response schema. Do not infer usable live TCGdex pricing from the catalog integration.
 
 ### 2. JustTCG (Pricing Provider)
 - **Purpose:** Market price observations.

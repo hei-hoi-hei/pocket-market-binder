@@ -21,3 +21,5 @@ Future coding agents must:
 ChatGPT, OpenAI, Cline, Copilot, and other AI references in project materials describe development tooling. Embedded ChatGPT, OpenAI integration, AI credential management, AI-powered card identification, and AI-dependent Binder functionality are not V1 product requirements.
 
 The original release verification claims remain useful historical context, but they do not supersede the reconciled current-state document.
+
+Current scanner direction is active product scope, with acquisition partially implemented and production recognition/integration unfinished. Synchronization infrastructure remains partial and optional/future scope pending an explicit product decision; local collection use does not depend on synchronization.

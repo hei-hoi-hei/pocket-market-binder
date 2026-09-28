@@ -235,7 +235,7 @@ Example:
 | Complex dashboard | SIMPLIFY |
 | Pricing API | REWRITE |
 | Database layer | AUDIT/REWRITE |
-| Scanner | DEFER |
+| Scanner | Historical prototype-plan status: DEFER. Current product direction supersedes this: scanner recognition is active scope; acquisition foundation exists, production recognition is unfinished. |
 | Visual styling | KEEP AS PROTOTYPE |
 
 ---
@@ -280,10 +280,10 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 | Catalog provider abstraction | Partial | Provider clarification | Existing registry is not a source resolver |
 | Multiple catalog providers | Missing / committed | Provider phase | Requires resolver, priority, fallback, and enrichment decisions |
 | Pricing aggregation and cache | Partial / substantially present | Pricing phase | Engine exists; live adapters and TCGdex schema need reconciliation |
-| Production scanner recognition | Intentionally deferred | Recognition phase | Benchmark and lifecycle evidence required first |
+| Production scanner recognition | Unfinished active requirement | Recognition phase | Benchmark and lifecycle evidence required before selecting production recognition approach |
 | Scanner candidates and confirmation | Unfinished V1 / missing | Scanner integration phase | Depends on reliable recognition; provider must not mutate binder |
 | User-owned provider credentials | Missing / committed | Provider configuration phase | Requires secure storage and export exclusion policy |
-| Bidirectional synchronization | Unfinished V1 / scope decision required | Product decision gate | Pull, cursor, conflict wiring, and account lifecycle incomplete |
+| Synchronization infrastructure | Partial / optional / future scope | Product decision gate | Scope requires explicit decision; pull, cursor, conflict wiring, and account lifecycle remain incomplete |
 | Narrow-width UI hardening | Partial | UI hardening phase | Targeted corrections only; no redesign |
 | Native Android/iOS packaging | Deferred | Platform phase | Requires stable PWA and native project setup |
 | User-facing ChatGPT/AI feature | Not a V1 product requirement | Development workflow only | AI references describe tooling, not Binder functionality |
@@ -509,7 +509,7 @@ Offline screen behavior should be deliberate rather than simply showing browser 
 
 # 15. Scanner
 
-Scanner is deliberately postponed.
+**Historical plan note:** Scanner was deliberately postponed when this build-plan section was written. Current product direction supersedes that implementation status: scanner/recognition is an active product requirement and implementation track, with image-acquisition foundation committed but production recognition unfinished.
 
 When implemented:
 

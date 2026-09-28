@@ -355,7 +355,7 @@ They should work offline.
 
 # 15. Decision: Scanner Is Not a Core Dependency
 
-Card scanning is an optional enhancement.
+**Historical decision context:** Scanning was previously described as an optional enhancement and deferred from the original V1 implementation plan. The current product direction is that scanner/recognition is an active product requirement and implementation track; its production implementation remains unfinished. “Not a core dependency” means the Binder must continue to work when scanning is unavailable, not that scanner is outside product scope.
 
 The application must always provide manual card entry.
 
@@ -855,8 +855,8 @@ Priority order:
 | Provider abstraction | ACCEPTED |
 | Own market-reference calculation | ACCEPTED |
 | Cached pricing | ACCEPTED |
-| Scanner deferred | ACCEPTED |
-| Cloud sync deferred | ACCEPTED |
+| Scanner deferred | Historical decision; superseded by current active scanner requirement (production recognition unfinished) |
+| Cloud sync deferred | Historical decision; synchronization remains partial and optional/future pending an explicit product decision |
 | Multi-TCG support deferred | ACCEPTED |
 | AI builder for scaffolding | ACCEPTED |
 | Cline for primary implementation | ACCEPTED |

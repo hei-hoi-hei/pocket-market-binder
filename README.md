@@ -11,28 +11,31 @@ Pocket Market Binder is an offline-first, expandable trading-card collection and
 
 - **Digital Virtual Binder & Collection Management:** Full CRUD management for owned cards, duplicate tracking, wishlist, and shopping/acquisition cart with native IndexedDB persistence.
 - **TCGdex Reference Catalog:** Comprehensive Pokémon TCG catalog search, set filtering, high-resolution artwork resolution, and offline catalog caching.
-- **Pocket Market Reference Pricing Engine:** Standardized `v1-median` consolidation engine that aggregates multi-source price observations, filters statistical outliers, normalizes currencies, calculates multi-factor confidence, and isolates market observations from user purchase prices.
-- **Card Identification & Verification:** Modular card identification pipeline designed for clue extraction, candidate ranking, and evidence-backed verification mapping directly to canonical card identities.
-- **Collection Statistics:** Instant summary metrics covering unique cards, total card count, rarity breakdowns, wishlist totals, and reference collection valuations without speculative analytics.
-- **Offline-First PWA:** Responsive mobile-first design with desktop breakpoints, service worker shell caching, and isolated IndexedDB storage keys.
+- **Pocket Market Reference Pricing Foundation:** `v1-median` consolidation and observation models exist, but current live provider coverage is limited and the TCGdex pricing response extraction requires verification. Do not interpret the engine as complete live pricing coverage.
+- **Scanner Foundation (Incomplete):** Browser image acquisition and scanner contract exist. Production identification, candidate results, user confirmation, catalog identity resolution, and scanner-to-collection actions are not implemented.
+- **Collection Statistics:** Summary counts for owned cards, quantities, rarity breakdowns, wishlist, and cart; live collection valuation is not established by the current collection statistics implementation.
+- **Offline-First PWA:** Responsive mobile-first design with desktop breakpoints, service worker shell caching, and isolated IndexedDB storage keys; offline availability of uncached external catalog data is not implied.
 - **₱0 Operating Cost Architecture:** Operates entirely client-side without mandatory backends or client-exposed API secrets.
 
 ---
 
 ## V1 Scope & Deferred Features
 
-### Included in V1.0.0:
-- Complete offline-first collection, binder, wishlist, and cart workflows.
-- Pokémon TCG canonical catalog integration via public TCGdex API.
-- Consolidated market reference pricing engine with isolated caching.
-- Card identification and canonical identity verification flows.
+### Implemented in the current V1 baseline:
+- Core local collection, binder, wishlist, and cart workflows.
+- Pokémon TCG catalog integration via public TCGdex API.
+- Pricing consolidation foundation with isolated caching and source-attributed observations.
+- Browser image acquisition foundation; scanner recognition and downstream collection integration remain unfinished.
 - MIT-licensed open-source codebase.
 
-### Explicitly Deferred (Post-V1 Milestones):
-- **Google Account & Cloud Synchronization:** Cloud-backed cross-device state synchronization.
-- **Authenticated Pricing Provider Integrations:** Direct or server-proxied connections to paid/authenticated pricing APIs (`JustTCG`, `PkmnPrices`, `Scrydex`, `TickerMint` remain safe stubs).
+### Optional / future scope:
+- **Google Account & Cloud Synchronization:** Partial sync infrastructure exists; enabling supported synchronization remains subject to an explicit product decision. Local collection use does not depend on sync.
+- **Authenticated Pricing Provider Integrations:** Direct or server-proxied connections to paid/authenticated pricing APIs (`JustTCG`, `PkmnPrices`, `Scrydex`, `TickerMint` remain stubs).
 - **Secondary TCG Catalogs:** Expansion to Magic: The Gathering, Yu-Gi-Oh!, or custom card games.
+- **Native Android packaging:** Capacitor configuration exists, but no native project or APK is present.
 - **Marketplace Purchasing & Social Features:** Direct buying/selling or social collection sharing.
+
+Scanner/camera-based identification is an active product requirement, not a completed feature or a removed scope item. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) and [docs/REFERENCE_BRIEF.md](docs/REFERENCE_BRIEF.md) for its verified status and workflow boundary.
 
 ---
 
