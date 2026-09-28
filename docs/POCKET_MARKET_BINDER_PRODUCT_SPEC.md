@@ -154,57 +154,53 @@ The project should remain understandable and maintainable.
 
 High-level architecture:
 
-    PWA Frontend
-          |
-          +---------------------+
-          |                     |
-      IndexedDB            Online Services
-          |                     |
-          |          +----------+----------+
-          |          |          |          |
-          |       Card API   Pricing    Scanner
-          |                    APIs       API
-          |                     |
-          |              Pricing Engine
-          |                     |
-          +----------+----------+
-                     |
+External Providers
+(catalog / pricing / artwork / future providers)
+             ↓
+      PMB Backend / API
+             ↓
+     Shared Reference Cache
+             ↓
+        User Device
+             ↓
+       Local IndexedDB
+             ↓
               Application UI
 
-IndexedDB is the source of truth for user-owned collection data.
+Separate backup/restore path:
+Local IndexedDB → versioned user-data backup → manual export / remote backup where feasible
 
-External APIs provide supplemental data.
+The PMB backend is a shared reference-data/cache layer, not the owner of the user's Binder.
 
-The application must not depend on an external API for basic collection functionality.
+External providers supply reference data; they are not the application's source of truth. A backend/shared cache response should be preferred over waiting on an upstream provider whenever it can satisfy a request.
+
+Cold: User → PMB → Provider → PMB → User
+Warm server cache: User → PMB → User
+Warm device cache: User → IndexedDB → User
+
+Already-cached collection/reference data must remain usable without internet, PMB backend availability, or upstream provider availability.
 
 ---
 
 # 8. Local-First Data Architecture
 
-IndexedDB should store:
+IndexedDB stores user-owned durable data and a local working/reference cache:
 
-- cards
-- collection
-- wishlist
-- cart
-- price observations
-- calculated market references
-- sets
-- settings
-- metadata/sync information
+- **User-owned durable state:** Binder/collection entries, quantities, Wishlist, Cart, notes/user-owned metadata, preferences.
+- **Local reference cache:** catalog metadata, sets, normalized provider data, price references/observations, and other reusable data where appropriate.
+- **Temporary/request cache:** search responses, transient provider results, short-lived lookups, and recognition attempts/results; disposable and not collection data.
 
-Suggested stores:
+Keep these categories separate. IndexedDB collection state is not disposable cache.
 
-    cards
-    collection
-    wishlist
-    cart
-    price_observations
-    price_references
-    sets
-    settings
-    sync_metadata
+The V1 PMB backend should support shared catalog/reference caching, eligible artwork caching, provider request deduplication/rate limiting, normalized responses, source/provenance, freshness/versioning, shared serving, and a stable client API. Shared artwork may only be cached/served when technical and legal terms permit. Provider hosting is not automatic redistribution permission; exact-printing evidence and provenance must be preserved and usage eligibility kept explicit.
 
+Backend and database vendors are not selected. The backend is not yet implemented and must not become a mandatory source of truth for collection state.
+
+## Backup and restore
+
+Backup/restore is part of the V1 pipeline and is distinct from the shared reference cache. Backups primarily preserve Binder, Wishlist, Cart, quantities, notes/user-owned metadata, preferences, and the schema/version required for restoration and migration. V1 supports the architecture for manual export/import, schema versioning/migration, and automatic/remote backup where feasible.
+
+Backups do not need to include every cached external image, catalog record, search response, or disposable provider result; reference data can normally be obtained from the PMB shared cache or re-fetched. Manual export/import currently exists, but a complete versioned backup/restore service is not implemented. Multi-device live collection synchronization is a separate optional decision.
 ---
 
 # 9. Card Data Model
@@ -753,8 +749,7 @@ Potential:
 - profit/loss tracking
 - Philippine market reference
 - additional TCGs
-- cloud backup
-- synchronization
+- optional multi-device collection synchronization
 - accounts
 
 ---

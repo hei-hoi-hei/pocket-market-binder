@@ -29,6 +29,49 @@ This document is authoritative for the current repository state and near-term ro
 
 V1 represents the complete original Pocket Market Binder product vision. A committed V1 requirement that is not implemented is unfinished V1 work, not automatically future scope. Future agents must not downgrade missing requirements to V2 merely because they are absent from the current code. Use `DEFERRED`, `OPTIONAL / FUTURE`, or `INTENTIONALLY REMOVED` only when an explicit product decision supports that classification.
 
+## V1 shared data and backup architecture decision
+
+An online PMB backend/API is part of the V1 architecture as a shared reference-data and cache layer. It is not the owner or source of truth for a user's Binder.
+
+```text
+External Providers
+(TCGdex / pricing / artwork / future providers)
+             ↓
+      PMB Backend / API
+             ↓
+     Shared Reference Cache
+             ↓
+        User Device
+             ↓
+       Local IndexedDB
+             ↓
+             UI
+```
+
+The backend boundary is intended to normalize provider responses, retain source/provenance and freshness/version metadata, deduplicate upstream requests, apply rate limits, serve shared cached data to multiple users, and provide a stable application-facing API. This can reduce repeated upstream requests and avoid waiting on an external provider when a usable cached response exists. Desired request paths are:
+
+```text
+Cold:              User → PMB → Provider → PMB → User
+Warm server cache: User → PMB → User
+Warm device cache: User → IndexedDB → User
+```
+
+These are target responsibilities, not implemented capabilities. Backend and database vendors are unselected; the backend is not yet built. External providers supply data but are not the application's source of truth.
+
+### Local-first state and cache separation
+
+- **User-owned durable data:** Binder, Wishlist, Cart, quantities, notes/user metadata, and preferences remain in local IndexedDB and usable offline or during PMB/upstream outages. The backend must not become the mandatory authority for this state.
+- **Shared reference cache:** reusable catalog metadata, eligible artwork, and normalized provider/reference information may be cached by the backend and locally as appropriate.
+- **Temporary/request cache:** search responses, transient provider results, short-lived price lookups, and recognition attempts/results are disposable and must not be confused with user-owned records.
+- IndexedDB collection state is durable user data, not disposable cache. Existing local reference caches remain distinct from collection records.
+- Shared artwork may only be cached/served when source terms and technical conditions permit. Provider hosting does not itself grant redistribution rights; preserve exact-printing evidence, provenance, and explicit eligible/unresolved/ineligible usage status.
+
+### V1 backup/restore boundary
+
+Backup/restore is part of the V1 data pipeline and is independent of the shared reference cache. Backups primarily preserve user-owned data plus schema/version needed for restoration: Binder, Wishlist, Cart, quantities, notes/user metadata, and preferences. Support manual export/import, schema versioning/migration, and automatic/remote backup where feasible. A backup does not need every external image, shared reference, search result, or disposable provider response; these can be rehydrated from the shared cache or fetched again where available.
+
+**Backend/shared cache is not user backup. IndexedDB collection state is not disposable cache.** Remote backup does not make the backend the live collection source of truth. No backend, remote backup, or new backup service is implemented by this decision. Vendor/database selection, authentication, and any separate multi-device collection-sync design remain to be decided without making local collection use dependent on them.
+
 ## Current baseline
 
 ### IMPLEMENTED
@@ -52,15 +95,16 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 - **Canonical identity:** Identity types and verification service exist, but no identity provider is registered and no user-facing verification flow exists. Identity verification is not image recognition.
 - **Pricing:** Architecture is substantially present, but most secondary providers are stubs and current TCGdex pricing extraction appears schema-stale/incomplete. Pricing remains separate from canonical `Card`.
 - **Artwork:** A provider-list resolver normalizes candidates and provenance, isolates provider failures, and selects deterministically. Exact-printing status requires evidence; candidates without exact status are not selected. Eligible usage is selectable; unresolved usage is selectable only with explicit provider compatibility; ineligible usage is always rejected. TCGdex alone is configured for unresolved-usage compatibility to preserve existing display, without a rights determination; secondary integration and artwork-specific caching are absent.
+- **PMB shared-reference backend/cache:** Accepted V1 architecture, not implemented. Vendor/database are unselected. It will normalize/cache reusable provider data and not own user collection state.
 - **Synchronization:** Contracts, outbox, push/provider scaffolding, and migration components exist. Pulled changes, cursor persistence, conflict wiring, account lifecycle, and truthful user-facing sync state are incomplete.
-- **Import/export:** Collection backup flows exist, but deep record validation, atomicity, migration robustness, and sync integration are incomplete.
+- **Backup/restore:** Manual collection export/import exists. Versioned validation/migrations, robust restore, and automatic/remote backup where feasible remain V1 work; backups are separate from disposable reference caches and collection sync.
 - **Mobile UI:** The application is responsive/mobile-capable, but some components become squeezed or compressed at narrow widths. This is targeted UI hardening, not a reason for visual redesign.
 - **Capacitor:** Configuration and dependencies exist, but no native project, plugin, permission, or APK build exists.
 
 ### PARTIAL — ACTIVE PRODUCT TRACK
 
 - Scanner/recognition is an active product requirement and implementation track. Image acquisition includes browser file input, MIME validation, temporary preview, replace/remove, and object-URL cleanup. A provider-agnostic recognition service validates image input and normalizes provider output into unresolved clues, confidence, evidence, and metadata; it does not resolve catalog identity or mutate collections. An explicit `offline` provider is the final fallback; it requires no credentials or network and returns `unavailable` because no local recognition engine is configured.
-- An isolated OCR benchmark and controlled catalog-matching benchmark exist as development tooling only.
+- An isolated OCR/catalog-matching benchmark exists as development tooling only. It supports local-photo manifests with per-image crop metadata; representative local photographs/results are not yet present, and no production provider has been selected.
 
 No production recognition engine is selected or registered, so identification and live candidate generation remain unavailable. Configured providers that are unavailable or fail are followed by the explicit offline provider; that provider performs no network access and fabricates no recognition result. Candidate Review accepts normalized results, displays candidate clues, and emits only an explicitly confirmed `ScannerCandidate`. A provider-agnostic catalog-identity service now accepts that confirmed type, normalizes existing catalog-provider results, and returns resolved, ambiguous, no-match, unavailable, error, or cancelled outcomes without choosing among ambiguous records or mutating collections/persistence. It can be adapted to the existing `ICatalogProvider` search interface; no live resolver is configured. The browser image picker is not native/direct camera integration. Manual catalog search remains available.
 
@@ -96,12 +140,14 @@ No production recognition engine is selected or registered, so identification an
 - Production scanner preprocessing and OCR/recognition provider, catalog matching, live candidate generation, production catalog-resolver selection, and Binder/Wishlist/Cart actions. Provider-neutral recognition and catalog-identity boundaries plus Candidate Review are implemented; none provides live recognition or mutates collections.
 - TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
 - Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
+- V1 PMB API/shared reference cache for normalized provider responses, provenance/freshness, request deduplication, rate limiting, and shared cache serving.
+- V1 versioned backup/restore for user-owned data, including automatic/remote backup where feasible; shared and disposable caches are not required backup contents.
 - Narrow-width audit and targeted responsive fixes without redesign.
 - Robust provider capability/health reporting.
 
 ### OPTIONAL / FUTURE
 
-- Synchronization remains optional/future scope pending an explicit product decision. Existing infrastructure is partial; local-first collection functionality does not depend on sync.
+- Multi-device collection synchronization remains optional/future scope pending a separate product decision. It is distinct from the V1 PMB reference backend/cache and V1 backup/restore; local-first collection functionality does not depend on synchronization.
 - Additional TCG categories.
 - Additional artwork sources and prefetching.
 - User-facing pricing refresh/source controls.
@@ -190,12 +236,12 @@ Future coding agents must preserve:
 
 ## Next implementation order
 
-1. Accept this documentation baseline and resolve the synchronization release-scope decision.
-2. Reconcile provider/source architecture before adding providers.
+1. Preserve the V1 data architecture: PMB shared reference backend/cache and a separate backup/restore pipeline; keep local collection state authoritative on-device.
+2. Reconcile provider/source architecture before adding providers or selecting backend/database vendors.
 3. Repair and test the TCGdex pricing adapter without changing `Card`.
-4. Review and commit the verified recognition boundary before starting another scanner slice.
-5. Select and integrate a local recognition provider only after OCR/preprocessing evidence supports that choice.
-6. Select a production catalog identity provider only after recognition can produce useful evidence; keep the implemented identity boundary separate from Candidate Review and collection actions.
-7. Complete synchronization only if product scope is explicitly confirmed.
+4. Select and integrate a local recognition provider only after representative OCR/preprocessing evidence supports that choice.
+5. Select a production catalog identity provider only after recognition can produce useful evidence; keep the implemented identity boundary separate from Candidate Review and collection actions.
+6. Design/implement the shared reference backend/cache and versioned backup/restore as separate V1 workstreams; do not conflate either with multi-device collection synchronization.
+7. Complete multi-device synchronization only if its separate product scope is explicitly confirmed.
 8. Harden narrow mobile layouts with targeted corrections.
 9. Create native projects only after the PWA baseline is stable.

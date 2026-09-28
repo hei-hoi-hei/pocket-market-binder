@@ -122,8 +122,8 @@ export function CardDetailScreen() {
       <div className="mt-8 space-y-6">
         {/* Binder Control */}
         <div className="bg-white rounded-2xl p-5 border border-parchment-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="p-2 bg-parchment-100 rounded-lg">
                 <BookOpen className="w-5 h-5 text-leather-600" />
               </div>
@@ -137,12 +137,14 @@ export function CardDetailScreen() {
                 </span>
               )}
             </div>
-            <QuantityStepper
-              value={qty}
-              min={0}
-              onDecrease={() => setBinderQuantity(card.id, Math.max(0, qty - 1))}
-              onIncrease={() => addToBinder(card.id, 1)}
-            />
+            <div className="self-end sm:self-auto flex-shrink-0">
+              <QuantityStepper
+                value={qty}
+                min={0}
+                onDecrease={() => setBinderQuantity(card.id, Math.max(0, qty - 1))}
+                onIncrease={() => addToBinder(card.id, 1)}
+              />
+            </div>
           </div>
           {qty > 0 && (
             <button

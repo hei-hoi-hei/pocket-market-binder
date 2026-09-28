@@ -1,7 +1,7 @@
 # Architecture
 
 ## Current Application Architecture
-The application follows a clean layered architecture separating UI components, React state context, application services, persistence adapters, and external APIs:
+The current application follows a clean layered architecture separating UI components, React state context, application services, IndexedDB, and external APIs. The V1 target adds the PMB shared-reference API/cache between external providers and device clients; this target backend is not yet implemented:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -24,10 +24,23 @@ The application follows a clean layered architecture separating UI components, R
                │                              │
                ▼                              ▼
 ┌─────────────────────────────┐┌──────────────────────────────┐
-│          IndexedDB          ││       External APIs          │
-│  (kv-store object store)    ││ (TCGdex, current data sources)│
+│          IndexedDB          ││       PMB Backend / API      │
+│  (user state + local cache) ││   (shared reference cache)   │
 └─────────────────────────────└──────────────────────────────┘
+                                      ↑
+                               External Providers
+                         (TCGdex / pricing / artwork)
 ```
+
+Target request paths:
+
+```text
+Cold:              User → PMB → Provider → PMB → User
+Warm server cache: User → PMB → User
+Warm device cache: User → IndexedDB → User
+```
+
+The PMB backend is a shared data/cache layer, not the owner of Binder/Wishlist/Cart. Its V1 responsibilities are provider-response normalization, source/provenance and freshness/versioning, request deduplication, rate limiting, shared-cache serving, and a stable client-facing API. This should avoid repeating upstream work and avoid waiting on slow providers when a cache entry can satisfy the request.
 
 ## Major Modules and Responsibilities
 - `src/components/`: Reusable UI elements (cards, grids, stat displays, steppers, navigation).
@@ -47,11 +60,17 @@ The application follows a clean layered architecture separating UI components, R
 ## Persistence & IndexedDB Isolation
 - Uses native IndexedDB (`pocket-market-binder` database, `kv-store` object store) with automatic legacy `localStorage` migration.
 - Key spaces are prefix-isolated:
-  - Unprefixed: `binder`, `wishlist`, `cart`
-  - Catalog cache: `cached_cards_store`
-  - Pricing references: `cached_prices_store:<cardId>`
-  - Pricing observations: `cached_observations_store:<cardId>`
+  - User-owned durable state: `binder`, `wishlist`, `cart`, quantities and user metadata/preferences
+  - Local catalog/reference cache: `cached_cards_store`
+  - Local pricing references: `cached_prices_store:<cardId>`
+  - Local pricing observations: `cached_observations_store:<cardId>`
 - Storage errors in pricing cannot destroy or mutate user collection data.
+
+Keep three classes distinct: user-owned durable state; shared reusable reference cache (catalog metadata, normalized provider data, and artwork only when legally/technically eligible); and disposable temporary/request cache (search responses, transient provider results, short-lived lookups, and recognition attempts/results). IndexedDB collection state is not disposable cache.
+
+### Backup/restore
+
+V1 backup/restore is a separate user-data pipeline, not a copy of the PMB shared reference cache. It preserves user-owned Binder, Wishlist, Cart, quantities, notes/metadata, preferences, and a schema/version for migration. Manual export/import exists; robust versioned restore and automatic/remote backup where feasible remain planned work. Cached artwork, catalog payloads, and disposable provider responses are normally rehydratable and need not be included. Multi-device live collection sync is a separate optional decision.
 
 ## Pricing Architecture (V1 Median Engine)
 The consolidation engine and observation model exist in `pricingService.ts`, but live source coverage is limited. Several adapters are stubs and the current TCGdex extraction requires verification against the actual detailed response shape.

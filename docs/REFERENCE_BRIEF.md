@@ -34,7 +34,7 @@ Higher-level evidence overrides lower-level evidence when they conflict. Documen
 ## Product direction, current scope, and implementation status
 
 - **Product direction:** A local-first, simple collection and reference app, initially focused on Pokémon TCG, designed not to prevent future collectible categories.
-- **Current product scope:** Binder, quantities, wishlist, cart, catalog browsing, artwork, price/source information, manual search, responsive PWA, curated theme direction, and scanner/camera-based identification as an active product requirement and implementation track. Synchronization is partial infrastructure and optional/future scope pending an explicit product decision; local-first use does not depend on it.
+- **Current product scope:** Binder, quantities, wishlist, cart, catalog browsing, artwork, price/source information, manual search, responsive PWA, curated theme direction, scanner/camera-based identification as an active product requirement and implementation track, a V1 PMB shared-reference backend/cache, and a separate V1 backup/restore pipeline. Multi-device collection synchronization is partial infrastructure and optional/future scope; local-first use does not depend on synchronization.
 - **Implementation status:** Determined from code and tests, not from this document. Current verified state is summarized in section 15.
 - **Future/deferred:** Additional collectible categories and themes are future extensibility. Sync is optional/future scope pending an explicit product decision. Native Android packaging is downstream of the web/PWA experience. Production scanner recognition is unfinished, not removed from scope.
 
@@ -280,23 +280,43 @@ External services may provide:
 
 The application should remain useful when external services are unavailable.
 
+The V1 data model distinguishes three separate concerns:
+
+1. **User-owned durable state:** Binder, Wishlist, Cart, quantities, notes, metadata, and preferences remain owned by the device in IndexedDB and available offline.
+2. **Shared reference data:** external providers supply reusable catalog, pricing, artwork, and other reference data through a PMB backend/API and shared cache. The backend normalizes and caches eligible data, preserves provenance/freshness, and provides a stable client API; it is not the Binder authority.
+3. **Backup/restore:** a separate V1 pipeline preserves user-owned data and schema/version for recovery. Manual export/import exists; robust versioned restore and automatic/remote backup where feasible remain to be completed. A backup need not contain every cached image or disposable provider response.
+
+```text
+External Providers → PMB Backend/API → Shared Reference Cache → User Device
+                                                           ↓
+                                                   Local IndexedDB → UI
+
+User-owned IndexedDB data → versioned backup/export or remote backup
+```
+
+Cold requests may go through PMB to an upstream provider; warm server-cache and warm device-cache paths should avoid unnecessary upstream waits. Already-cached collection/reference data should remain usable during internet, backend, or provider outages. Backend/shared cache is not user backup; IndexedDB collection state is not disposable cache; external providers are not the application's source of truth.
+
+Shared artwork may only be cached or served when source terms and technical conditions permit. Provider hosting alone is not redistribution permission; preserve exact-printing evidence, provenance, and explicit eligible/unresolved/ineligible usage status.
+
 ---
 
 ## 4.2 Provider-neutral
 
 External providers should be replaceable where practical.
 
-Prefer:
+For shared reference data in the approved V1 architecture, prefer:
 
 ```text
-Application
+Application / User Device
+     ↓
+PMB Backend / API
      ↓
 Provider Interface
      ↓
-External Provider
+External Provider(s)
 ```
 
-rather than coupling the application directly to one external service.
+The PMB backend/API is the stable application-facing reference-data boundary; it can use replaceable provider interfaces upstream. Provider-neutral means the application is not coupled to one specific external provider, not that the client calls providers directly. IndexedDB remains the local source of truth for the user's Binder, Wishlist, Cart, and other user-owned collection state; the backend/shared cache does not own that state.
 
 Providers supply information.
 

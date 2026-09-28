@@ -314,6 +314,8 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 |---|---|---|---|
 | IndexedDB collection source of truth | Implemented | Preserve | User data must remain local-first |
 | Manual catalog search and binder addition | Implemented | Preserve | Must remain independent of scanner |
+| PMB backend/API shared reference cache | Missing / committed V1 architecture | Backend/cache phase | Normalize and cache reusable external reference data; provenance/freshness, request deduplication, rate limiting, shared serving and stable API; backend never owns collection state; vendor/database unselected |
+| V1 backup/restore pipeline | Partial / committed V1 | Data portability phase | Manual export/import exists; add schema/versioned robust restore and automatic/remote backup where feasible; do not require disposable cache payloads |
 | Catalog provider abstraction | Partial | Provider clarification | Existing registry is not a source resolver |
 | Multiple catalog providers | Missing / committed | Provider phase | Requires resolver, priority, fallback, and enrichment decisions |
 | Pricing aggregation and cache | Partial / substantially present | Pricing phase | Engine exists; live adapters and TCGdex schema need reconciliation |
@@ -325,7 +327,7 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 | Provider-agnostic Candidate Review | Implemented | Scanner integration phase | Displays normalized clues and emits only an explicitly confirmed `ScannerCandidate`; no catalog ID or collection mutation |
 | Production candidate generation and catalog identity provider | Unfinished V1 / missing | Scanner integration phase | Candidate Review and an injectable resolver boundary exist; live recognition/resolution providers remain unselected |
 | User-owned provider credentials | Missing / committed | Provider configuration phase | Requires secure storage and export exclusion policy |
-| Synchronization infrastructure | Partial / optional / future scope | Product decision gate | Scope requires explicit decision; pull, cursor, conflict wiring, and account lifecycle remain incomplete |
+| Multi-device collection synchronization | Partial / optional / future scope | Separate product decision | Existing infrastructure is partial; pull, cursor, conflict wiring, and account lifecycle remain incomplete; distinct from shared reference cache and backup |
 | Narrow-width UI hardening | Partial | UI hardening phase | Targeted corrections only; no redesign |
 | Native Android/iOS packaging | Deferred | Platform phase | Requires stable PWA and native project setup |
 | User-facing ChatGPT/AI feature | Not a V1 product requirement | Development workflow only | AI references describe tooling, not Binder functionality |
@@ -750,16 +752,23 @@ Once these work reliably, move to visual refinement.
                    │
           ┌────────┴─────────┐
           ↓                  ↓
-    ┌──────────────┐   ┌───────────────┐
-    │  IndexedDB   │   │ Online APIs   │
-    │              │   │               │
-    │ Collection   │   │ Card Provider │
-    │ Wishlist     │   │ Pricing       │
-    │ Cart         │   │ Scanner       │
-    │ Cache        │   │               │
-    └──────────────┘   └───────────────┘
+External Providers
+(TCGdex / pricing / artwork / future providers)
+          ↓
+   PMB Backend / API
+          ↓
+  Shared Reference Cache
+          ↓
+      User Device
+          ↓
+    Local IndexedDB
+          ↓
+          UI
 
-IndexedDB remains the source of truth for user-owned data.
+Separate V1 recovery path:
+Local IndexedDB user-owned data → versioned backup → manual export / remote backup where feasible
+
+The PMB backend is a shared reference-data/cache layer, not collection authority. IndexedDB remains the source of truth for Binder, Wishlist, Cart, and other user-owned state. Backup/restore is independent of shared reference caching and multi-device live collection synchronization.
 
 ---
 

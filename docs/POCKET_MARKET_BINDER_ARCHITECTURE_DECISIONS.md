@@ -31,7 +31,7 @@ When a generated implementation conflicts with this document, the conflict must 
 
 The application follows:
 
-> Local-first → API-assisted → cloud-optional
+> Local-first collection → shared API-assisted reference data → independently backed-up user data
 
 The user's collection belongs to the user and must not depend on a remote server.
 
@@ -40,6 +40,8 @@ External services provide supplemental information such as:
 - card catalog data
 - market prices
 - scanning/identification
+
+**V1 decision:** A PMB backend/API and shared reference cache are part of the V1 architecture. This supersedes the historical “no mandatory backend” decision below for reusable external reference data only. It does not make the backend the user's Binder authority or a prerequisite for local collection use. V1 also includes a distinct backup/restore pipeline for user-owned data. Neither service is implemented or vendor-selected.
 
 ## Decision preservation
 
@@ -64,66 +66,87 @@ Provider failure is an external-data problem, not a collection-data problem. Sou
 
 # 3. Core Architecture
 
-Preferred structure:
+Preferred V1 structure:
 
     ┌─────────────────────────────────────┐
-    │              UI / PWA               │
-    │                                     │
-    │ Home / Binder / Search / Details    │
-    │ Wishlist / Cart                     │
+    │        External Providers           │
+    │  Catalog / Pricing / Artwork        │
     └──────────────────┬──────────────────┘
-                       │
                        ▼
     ┌─────────────────────────────────────┐
+    │         PMB Backend / API           │
+    │      Shared Reference Cache         │
+    └──────────────────┬──────────────────┘
+                       ▼
+    ┌─────────────────────────────────────┐
+    │          User Device / PWA          │
     │       Application Service Layer     │
     │                                     │
-    │ CollectionService                   │
-    │ SearchService                       │
-    │ WishlistService                     │
-    │ CartService                         │
-    │ PricingService                      │
-    │ CardService                         │
-    └──────────────────┬──────────────────┘
-                       │
-             ┌─────────┴─────────┐
-             ▼                   ▼
+    │ CollectionService / SearchService   │
+    │ WishlistService / CartService       │
+    │ PricingService / CardService        │
+    └──────────────┬──────────────┬───────┘
+                   │              │
+                   ▼              ▼
     ┌─────────────────┐  ┌──────────────────┐
-    │    IndexedDB    │  │ External APIs    │
+    │    IndexedDB    │  │ PMB Backend / API│
     │                 │  │                  │
-    │ User Data       │  │ Card Providers  │
-    │ Cached Cards    │  │ Pricing         │
-    │ Cached Prices   │  │ Scanner         │
+    │ User Data       │  │ Reference Data   │
+    │ Local Cache     │  │ Stable API       │
     └─────────────────┘  └──────────────────┘
 
-The UI should communicate with application services rather than directly accessing APIs or IndexedDB where practical.
+The PMB backend/API is the stable application-facing boundary for shared reference data; the client does not directly call upstream reference providers in the approved V1 architecture. Application services use IndexedDB for local user-owned state and local cache. The backend is not the source of truth for the user's collection.
+
+### V1 reference-data and backup paths
+
+```text
+External Providers
+(TCGdex / pricing / artwork / future providers)
+             ↓
+      PMB Backend / API
+             ↓
+     Shared Reference Cache
+             ↓
+        User Device
+             ↓
+       Local IndexedDB
+             ↓
+             UI
+
+Separate user-data path:
+Local IndexedDB → versioned backup → manual export / remote backup where feasible
+```
+
+Performance target:
+
+```text
+Cold:              User → PMB → Provider → PMB → User
+Warm server cache: User → PMB → User
+Warm device cache: User → IndexedDB → User
+```
+
+The backend should normalize provider responses, retain source/provenance and freshness/version information, deduplicate upstream requests, apply rate limits, serve warm shared cache to multiple users, and provide a stable application-facing API. These are target V1 responsibilities, not implemented capabilities. Prefer a usable cache response over waiting on a slow external provider.
 
 ---
 
-# 4. Decision: IndexedDB Is the Collection Source of Truth
+# 4. Decision: IndexedDB Is the User Collection Source of Truth
 
-**Decision:** User-owned collection data is stored in IndexedDB.
+**Decision:** User-owned working state remains in local IndexedDB. A PMB shared-reference backend does not own or replace this data.
 
 This includes:
 
-- collection
-- quantities
-- wishlist
-- shopping cart
-- local settings
-- cached card information
-- cached pricing information
+- Binder/collection entries and quantities
+- Wishlist and Cart
+- notes and user-owned metadata
+- preferences/settings
 
-Reason:
-
-The application must work offline and must operate at ₱0.
-
-A remote database is unnecessary for V1.
+The application must remain locally useful offline and during PMB backend or provider outages. IndexedDB collection state is durable user data, not a disposable cache. Local cache may also hold working/reference data where appropriate, but it is separate from user-owned records.
 
 ---
 
-# 5. Decision: No Authentication in V1
+# 5. Decision: No Account Required for Local Use
 
-**Decision:** Do not implement user accounts or authentication.
+**Decision:** Local collection use must not require an account or authentication. No authentication design or service is selected here.
 
 Reason:
 
@@ -137,23 +160,31 @@ Authentication would introduce:
 - additional dependencies
 - unnecessary complexity
 
-Cloud synchronization can be considered later.
+Automatic/remote backup may require an explicit identity, device-linking, or authorization design; that design remains open and must not make local use dependent on login. Manual export/import remains available independently.
 
 ---
 
-# 6. Decision: No Mandatory Backend
+# 6. Historical Decision: No Mandatory Backend (Superseded for Shared Reference Data)
 
-**Decision:** The core application should not require a backend server.
+This is a historical constraint and is superseded by the accepted V1 shared-reference backend decision in section 2. The client remains a PWA and local collection functions without the backend, but V1 includes a backend/API for shared normalized reference data and reusable caches.
 
-The application should be capable of running as a static PWA.
+The V1 backend is not a collection database. No vendor, database, authentication design, or implementation is selected. Do not add paid dependencies/services without a separate terms and cost review.
 
-A backend/serverless layer may be introduced later only when a concrete requirement exists, such as:
+## 6.1 Cache classes and ownership
 
-- protecting a provider API key
-- cloud synchronization
-- server-side processing
+1. **User-owned durable state:** Binder, Wishlist, Cart, quantities, notes/user-owned metadata, and preferences. Local IndexedDB is the working source of truth.
+2. **Shared reference cache:** reusable catalog metadata, normalized provider information, and artwork only when exact-printing/provenance and usage eligibility support caching/serving. Provider hosting is not permission to redistribute; preserve provenance and distinguish eligible, unresolved, and ineligible usage.
+3. **Temporary/request cache:** search responses, transient provider results, short-lived price lookups, and recognition attempts/results. These are disposable and are not collection records or backup requirements.
 
-Do not introduce a backend merely because an AI builder generates one.
+Do not confuse the PMB shared cache with user backup, or IndexedDB collection state with disposable cache.
+
+## 6.2 Decision: V1 Backup/Restore Pipeline
+
+Backup/restore is a V1 data pipeline, separate from shared reference caching and multi-device collection synchronization. Backups primarily preserve user-owned Binder, Wishlist, Cart, quantities, notes/metadata, preferences, and the schema/version needed to restore or migrate them.
+
+V1 should support manual export, manual import/restore, schema versioning/migration, and automatic/remote backup where feasible. Backups need not contain all cached artwork, external catalog payloads, search results, or disposable provider responses; these can normally be restored from PMB shared cache or fetched again. The backend/shared cache is not a user backup, and a backup does not make the server authoritative for active collection state.
+
+Manual collection export/import exists today; validated, versioned restore and automatic/remote backup are not implemented. No backup service is selected or built here.
 
 ---
 
@@ -751,19 +782,15 @@ The application should first be an excellent Pokémon binder.
 
 ---
 
-# 31. Decision: No Premature Cloud Sync
+# 31. Decision: Collection Synchronization Is Separate from V1 Backup and Shared Cache
 
-Cloud backup/synchronization is deferred.
+Multi-device live collection synchronization remains a separate optional/future decision. Its conflicts, accounts, and bidirectional state are not implied by the V1 shared reference backend or the V1 backup/restore pipeline.
 
-Reason:
+V1 backup/restore is accepted scope, including automatic/remote backup where feasible, as well as manual export/import and schema migration. This supersedes the historical statement that cloud backup itself is deferred. Backup is a versioned copy/restore path for user-owned data, not continuous synchronization.
 
-- ₱0 requirement
-- personal use
-- additional complexity
-- conflict resolution requirements
-- authentication requirements
+The implementation and remote-backup access model remain to be designed. Do not introduce authentication, sync, or a backend vendor without the relevant scoped decision.
 
-Potential future architecture:
+Potential future synchronization architecture (not the V1 backup/cache architecture):
 
     IndexedDB
         ↕
@@ -872,15 +899,17 @@ Priority order:
 | IndexedDB as collection source of truth | ACCEPTED |
 | PWA | ACCEPTED |
 | ₱0 operating target | ACCEPTED |
-| No authentication in V1 | ACCEPTED |
-| No mandatory backend | ACCEPTED |
+| Local use requires no authentication | ACCEPTED; remote-backup access design remains open |
+| V1 PMB shared reference backend/cache | ACCEPTED; not implemented, vendor/database unselected; never owns collection state |
+| V1 backup/restore pipeline | ACCEPTED; manual export/import exists, complete versioned/automatic-remote pipeline unfinished |
 | Provider abstraction | ACCEPTED |
 | Own market-reference calculation | ACCEPTED |
 | Cached pricing | ACCEPTED |
 | Multiple external sources, one canonical local truth | ACCEPTED; artwork provider-pool foundation implemented, generalized orchestration remains future |
 | Secondary artwork source | NOT APPROVED; bounded evidence recorded in `ARTWORK_SOURCE_INVESTIGATION.md` |
 | Scanner deferred | Historical decision; superseded by current active scanner requirement (production recognition unfinished) |
-| Cloud sync deferred | Historical decision; synchronization remains partial and optional/future pending an explicit product decision |
+| Cloud backup deferred | Historical decision; superseded by accepted V1 backup/restore pipeline |
+| Cloud collection sync deferred | Historical decision; multi-device sync remains separate optional/future scope |
 | Multi-TCG support deferred | ACCEPTED |
 | AI builder for scaffolding | ACCEPTED |
 | Cline for primary implementation | ACCEPTED |

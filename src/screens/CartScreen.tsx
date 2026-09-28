@@ -7,15 +7,34 @@ import { useCollection } from '@/context/CollectionContext';
 import { useNav } from '@/context/NavContext';
 import { catalogService } from '@/services/catalogService';
 import { CardArtwork } from '@/components/CardArtwork';
+import { CollectionSortControl, type CollectionSortOption } from '@/components/CollectionSortControl';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { formatPrice, getCardTypeStyle } from '@/utils/format';
+import { sortCartLines, type CollectionSortMode } from '@/utils/collectionSorting';
 
 interface CartLine {
   cardId: string;
   card: Card;
   quantity: number;
   sellerPrice: number | null;
+  addedAt: number;
 }
+
+const CART_SORT_OPTIONS: CollectionSortOption[] = [
+  { value: 'original', label: 'Default order' },
+  { value: 'recently-added', label: 'Recently added' },
+  { value: 'name-asc', label: 'Card name A → Z' },
+  { value: 'name-desc', label: 'Card name Z → A' },
+  { value: 'set-asc', label: 'Set A → Z' },
+  { value: 'set-desc', label: 'Set Z → A' },
+  { value: 'collector-number', label: 'Collector number' },
+  { value: 'unit-price-asc', label: 'Unit price: Low → High' },
+  { value: 'unit-price-desc', label: 'Unit price: High → Low' },
+  { value: 'quantity-asc', label: 'Quantity: Low → High' },
+  { value: 'quantity-desc', label: 'Quantity: High → Low' },
+  { value: 'total-value-asc', label: 'Total value: Low → High' },
+  { value: 'total-value-desc', label: 'Total value: High → Low' },
+];
 
 export function CartScreen() {
   const { cart, updateCartEntry, removeFromCart, clearCart } = useCollection();
@@ -24,6 +43,7 @@ export function CartScreen() {
   const [loading, setLoading] = useState(true);
   const [editingPrice, setEditingPrice] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState('');
+  const [sortMode, setSortMode] = useState<CollectionSortMode>('original');
 
   useEffect(() => {
     let active = true;
@@ -38,6 +58,7 @@ export function CartScreen() {
             card,
             quantity: entry.quantity,
             sellerPrice: entry.sellerPrice ?? null,
+            addedAt: entry.addedAt,
           });
         }
       }
@@ -53,6 +74,7 @@ export function CartScreen() {
 
   const sellerTotal = lines.reduce((sum, l) => sum + (l.sellerPrice ?? 0) * l.quantity, 0);
   const pricedLinesCount = lines.filter((l) => l.sellerPrice !== null && l.sellerPrice >= 0).length;
+  const sortedLines = sortCartLines(lines, sortMode);
 
   const startEditPrice = (cardId: string, current: number | null) => {
     setEditingPrice(cardId);
@@ -107,7 +129,8 @@ export function CartScreen() {
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Line items */}
           <div className="flex-1 w-full space-y-3">
-            {lines.map(({ cardId, card, quantity, sellerPrice }) => {
+            <CollectionSortControl value={sortMode} options={CART_SORT_OPTIONS} onChange={setSortMode} />
+            {sortedLines.map(({ cardId, card, quantity, sellerPrice }) => {
               const style = getCardTypeStyle(card);
               const lineTotal = sellerPrice !== null ? sellerPrice * quantity : null;
 
@@ -118,11 +141,11 @@ export function CartScreen() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className={`${style.bg} ${style.text} px-2 py-0.5 rounded-full text-[9px] font-bold uppercase`}>
+                    <div className="flex items-center gap-2 mb-0.5 min-w-0">
+                      <span className={`${style.bg} ${style.text} px-2 py-0.5 rounded-full text-[9px] font-bold uppercase flex-shrink-0`}>
                         {style.label}
                       </span>
-                      <span className="text-xs text-leather-400">{card.setCode}-{card.setNumber}</span>
+                      <span className="text-xs text-leather-400 min-w-0 truncate whitespace-nowrap">{card.setCode}-{card.setNumber}</span>
                     </div>
                     <h4
                       onClick={() => go('detail', cardId)}
@@ -131,28 +154,28 @@ export function CartScreen() {
                       {card.name}
                     </h4>
 
-                    <div className="flex items-center gap-3 mt-1 text-xs text-leather-600">
-                      <span>Qty: <strong className="text-leather-800">{quantity}</strong></span>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-leather-600">
+                      <span className="whitespace-nowrap">Qty: <strong className="text-leather-800">{quantity}</strong></span>
                       {sellerPrice !== null ? (
-                        <span>Price: <strong className="text-leather-800">{formatPrice(sellerPrice)}</strong></span>
+                        <span className="whitespace-nowrap">Price: <strong className="text-leather-800">{formatPrice(sellerPrice)}</strong></span>
                       ) : (
-                        <span className="text-leather-400 italic">No seller price set</span>
+                        <span className="text-leather-400 italic truncate">No seller price set</span>
                       )}
                     </div>
 
                     {/* Quantity & Price Row */}
-                    <div className="flex items-center gap-4 mt-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
                       <div className="inline-flex items-center gap-2">
                         <button
                           onClick={() => updateCartEntry(cardId, { quantity: Math.max(1, quantity - 1) })}
-                          className="w-6 h-6 rounded-full bg-parchment-200 text-leather-700 flex items-center justify-center active:scale-90"
+                          className="w-10 h-10 sm:w-6 sm:h-6 rounded-full bg-parchment-200 text-leather-700 flex items-center justify-center active:scale-90"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
                         <span className="font-bold text-sm tabular-nums w-4 text-center">{quantity}</span>
                         <button
                           onClick={() => updateCartEntry(cardId, { quantity: Math.min(99, quantity + 1) })}
-                          className="w-6 h-6 rounded-full bg-leather-600 text-white flex items-center justify-center active:scale-90"
+                          className="w-10 h-10 sm:w-6 sm:h-6 rounded-full bg-leather-600 text-white flex items-center justify-center active:scale-90"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -176,7 +199,7 @@ export function CartScreen() {
                       ) : (
                         <button
                           onClick={() => startEditPrice(cardId, sellerPrice)}
-                          className="text-xs font-semibold text-gold-600 flex items-center gap-1 hover:underline"
+                          className="text-xs font-semibold text-gold-600 flex items-center gap-1 whitespace-nowrap hover:underline"
                         >
                           <Coins className="w-3.5 h-3.5" />
                           {sellerPrice !== null ? formatPrice(sellerPrice) : 'Set Price'}
@@ -205,7 +228,7 @@ export function CartScreen() {
           </div>
 
           {/* Summary */}
-          <div className="w-full lg:w-80 bg-leather-800 text-white rounded-xl p-5 shadow-card space-y-4 sticky bottom-20 lg:bottom-auto lg:top-24 flex-shrink-0">
+          <div className="w-full lg:w-80 bg-leather-800 text-white rounded-xl p-5 shadow-card space-y-4 lg:sticky lg:top-24 flex-shrink-0">
             <h3 className="font-display text-lg text-gold-400">Cart Summary</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">

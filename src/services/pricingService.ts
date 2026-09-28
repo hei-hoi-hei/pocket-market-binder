@@ -231,7 +231,15 @@ export class PricingService {
 
     return null;
   }
+
+  async getCachedPriceReference(cardId: string): Promise<PriceReference | null> {
+    if (!cardId) return null;
+    try {
+      return await storage.get<PriceReference>(`${CACHED_PRICES_PREFIX}${cardId}`);
+    } catch {
+      return null;
+    }
+  }
 }
 
 export const pricingService = new PricingService();
-

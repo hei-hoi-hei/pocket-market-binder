@@ -123,23 +123,28 @@ export async function setCart(entries: CartEntry[]): Promise<void> {
 export async function addToCart(cardId: string, qty = 1, sellerPrice?: number | null): Promise<CartEntry[]> {
   const entries = await getCart();
   const existing = entries.find((e) => e.cardId === cardId);
+  let updatedEntry: CartEntry;
   if (existing) {
     existing.quantity += qty;
-    if (sellerPrice !== undefined) existing.sellerPrice = sellerPrice;
+    if (sellerPrice != null) existing.sellerPrice = sellerPrice;
+    updatedEntry = existing;
   } else {
-    entries.push({ cardId, quantity: qty, sellerPrice: sellerPrice ?? null, addedAt: Date.now() });
+    updatedEntry = { cardId, quantity: qty, sellerPrice: sellerPrice ?? null, addedAt: Date.now() };
+    entries.push(updatedEntry);
   }
   await setCart(entries);
-  await recordSyncChange('cart', cardId, { cardId, quantity: existing ? existing.quantity : qty, sellerPrice });
+  await recordSyncChange('cart', cardId, updatedEntry);
   return entries;
 }
 
 export async function updateCartEntry(cardId: string, patch: Partial<Omit<CartEntry, 'cardId'>>): Promise<CartEntry[]> {
   const entries = await getCart();
   const existing = entries.find((e) => e.cardId === cardId);
-  if (existing) Object.assign(existing, patch);
+  if (existing) {
+    Object.assign(existing, patch);
+  }
   await setCart(entries);
-  await recordSyncChange('cart', cardId, { cardId, ...patch });
+  if (existing) await recordSyncChange('cart', cardId, existing);
   return entries;
 }
 
@@ -178,4 +183,3 @@ export async function getCollectionStats(): Promise<CollectionStats> {
     cartCount: cart.length,
   };
 }
-

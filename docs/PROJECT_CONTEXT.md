@@ -17,19 +17,21 @@ Pocket Market Binder is a mobile-first Progressive Web App (PWA) designed as a d
 - **Build Tool:** Vite
 - **Styling:** Tailwind CSS (with custom design tokens for parchment, leather, and energy types)
 - **Icons:** Lucide React
-- **Storage:** Native IndexedDB (via a custom `KVStore` abstraction layer with automatic legacy `localStorage` migration)
-- **Catalog/Artwork API:** TCGdex API (with hybrid in-memory and IndexedDB caching)
+- **Storage:** Native IndexedDB (via a custom `KVStore` abstraction layer with automatic legacy `localStorage` migration); a PMB shared-reference backend/API is a V1 architecture requirement, not yet implemented
+- **Catalog/Artwork API:** TCGdex API directly today, with hybrid in-memory and IndexedDB caching; the planned PMB API/cache will become the stable client-facing shared reference-data layer
 
 ## Major Product Goals
 - **Local-First Architecture:** User collection data is fully owned and stored client-side in IndexedDB.
+- **V1 Shared Reference Data:** External providers feed a PMB backend/API and shared normalized reference cache, which serves devices and reduces repeated/slow upstream requests. The backend does not own the user's collection; backend and database vendors are unselected.
+- **V1 Backup/Restore:** Backup preserves user-owned data and schema/version independently of shared/disposable caches. Manual import/export exists; validated/versioned restore and automatic/remote backup where feasible remain incomplete.
 - **Operating Cost Target:** ₱0 (no paid APIs, paid databases, authentication servers, or paid hosting).
 - **Offline Resilience:** Local collection data remains available without network access. Uncached catalog cards and live external pricing require connectivity; offline completeness is not implied.
 - **Robust Pricing Engine:** Aggregates market observations through a versioned median calculation algorithm with multi-factor confidence scoring.
 
 ## Important Constraints
 - **Zero Cost:** Must operate entirely at ₱0. Free tiers of public APIs are permitted only when their terms allow.
-- **No Mandatory Backend:** Operates as a static PWA.
-- **No Mandatory Authentication or Backend:** Local collection use must not require an account or sync. Sync infrastructure is partial and remains optional/future scope pending an explicit product decision.
+- The PMB shared-reference backend is part of V1 architecture, but local collection use remains available without it. No backend vendor/database or authentication design is selected; accounts are not required for local use.
+- Multi-device collection sync is distinct from shared reference caching and user backup, and remains optional/future pending a separate product decision.
 
 ## What the Project Explicitly Is NOT Trying To Do
 - Not a commercial marketplace or trading platform.
@@ -40,4 +42,5 @@ Pocket Market Binder is a mobile-first Progressive Web App (PWA) designed as a d
 ## Current Overall Development Status
 - **Implemented & Verified:** Core PWA shell, responsive navigation, IndexedDB persistence, collection management (binder, wishlist, cart), TCGdex catalog search and detail views, artwork resolution, and the V1 Pricing Foundation (provider interfaces, currency normalization, median aggregation, outlier filtering, multi-factor confidence, provider isolation, and stubbed adapters).
 - **Partially Implemented / Unfinished:** Pricing consolidation foundation exists, but live provider coverage is limited and the TCGdex pricing response extraction needs verification. Scanner acquisition is present; recognition and downstream stages remain unfinished.
-- **Optional / Future Scope:** Synchronization remains optional pending a product decision. The local-first Binder does not depend on it.
+- **V1 work remaining:** PMB shared reference backend/cache and robust backup/restore pipeline are not implemented.
+- **Optional / Future Scope:** Multi-device collection synchronization remains optional pending a separate product decision. The local-first Binder does not depend on it.

@@ -1,17 +1,18 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { createWorker } from 'tesseract.js';
-import fixtures from './scanner-benchmark-fixtures.json';
+import defaultFixtures from './scanner-benchmark-fixtures.json';
 import { matchTextEvidence, type ScannerTextEvidence } from './scanner-benchmark-matcher';
+import {
+  describeFixtureImage,
+  parseScannerBenchmarkFixtures,
+  resolveFixtureImagePath,
+  resolveOcrRegion,
+  type NormalizedRectangle,
+  type ScannerBenchmarkFixture,
+} from './scanner-benchmark-input';
 
-interface Fixture {
-  id: string;
-  name: string;
-  collectorNumber: string;
-  setCode: string;
-  layout: string;
-  condition: string;
-}
+type Fixture = ScannerBenchmarkFixture;
 
 interface OcrEvidence {
   name: string;
@@ -21,6 +22,8 @@ interface OcrEvidence {
 
 interface BenchmarkResult extends Fixture {
   sourceUrl: string;
+  imageWidth: number;
+  imageHeight: number;
   nameOcr: string;
   collectorOcr: string;
   wholeCardOcr: string;
@@ -43,6 +46,13 @@ const RESULTS_DIR = resolve('benchmark-results');
 const RESULTS_PATH = resolve(RESULTS_DIR, 'scanner-benchmark-results.json');
 const CARD_WIDTH = 734;
 const CARD_HEIGHT = 1024;
+const DEFAULT_NAME_REGION: NormalizedRectangle = { left: 0, top: 0, width: 1, height: 230 / CARD_HEIGHT };
+const DEFAULT_COLLECTOR_REGION: NormalizedRectangle = {
+  left: 0,
+  top: 800 / CARD_HEIGHT,
+  width: 1,
+  height: (CARD_HEIGHT - 800) / CARD_HEIGHT,
+};
 
 function normalizeText(value: string): string {
   return value
@@ -68,7 +78,18 @@ function fixtureImageUrl(fixture: Fixture): string {
   return `https://assets.tcgdex.net/en/${language}/${setId}/${localId}/high.webp`;
 }
 
-async function loadFixtureImage(fixture: Fixture): Promise<{ buffer: Buffer; sourceUrl: string }> {
+async function loadFixtureImage(
+  fixture: Fixture,
+  manifestPath: string,
+): Promise<{ buffer: Buffer; sourceUrl: string }> {
+  const localImagePath = resolveFixtureImagePath(fixture, manifestPath);
+  if (localImagePath) {
+    return {
+      buffer: await readFile(localImagePath),
+      sourceUrl: describeFixtureImage(fixture),
+    };
+  }
+
   const sourceUrl = fixtureImageUrl(fixture);
   const cachePath = resolve(CACHE_DIR, `${fixture.id.replace(/[^a-zA-Z0-9.-]/g, '_')}.webp`);
   try {
@@ -83,12 +104,28 @@ async function loadFixtureImage(fixture: Fixture): Promise<{ buffer: Buffer; sou
   }
 }
 
-async function recognizeFixture(worker: Awaited<ReturnType<typeof createWorker>>, image: Buffer): Promise<OcrEvidence> {
-  const nameRegion = { left: 0, top: 0, width: CARD_WIDTH, height: 230 };
-  const footerRegion = { left: 0, top: 800, width: CARD_WIDTH, height: CARD_HEIGHT - 800 };
+async function recognizeFixture(
+  worker: Awaited<ReturnType<typeof createWorker>>,
+  image: Buffer,
+  fixture: Fixture,
+): Promise<OcrEvidence> {
+  const imageWidth = fixture.imageWidth ?? CARD_WIDTH;
+  const imageHeight = fixture.imageHeight ?? CARD_HEIGHT;
+  const nameRegion = resolveOcrRegion(
+    fixture.nameRegion,
+    imageWidth,
+    imageHeight,
+    DEFAULT_NAME_REGION,
+  );
+  const collectorNumberRegion = resolveOcrRegion(
+    fixture.collectorNumberRegion,
+    imageWidth,
+    imageHeight,
+    DEFAULT_COLLECTOR_REGION,
+  );
   const [name, collectorNumber, wholeCard] = await Promise.all([
     worker.recognize(image, { rectangle: nameRegion }),
-    worker.recognize(image, { rectangle: footerRegion }),
+    worker.recognize(image, { rectangle: collectorNumberRegion }),
     worker.recognize(image),
   ]);
   return {
@@ -107,6 +144,18 @@ async function cancellationProbe(image: Buffer): Promise<{ terminated: boolean; 
 }
 
 async function main(): Promise<void> {
+  const fixtureArgument = process.argv.indexOf('--fixtures');
+  if (fixtureArgument >= 0 && !process.argv[fixtureArgument + 1]) {
+    throw new Error('Provide a JSON manifest path after --fixtures.');
+  }
+  const manifestPath = fixtureArgument >= 0
+    ? resolve(process.argv[fixtureArgument + 1])
+    : resolve('scripts/scanner-benchmark-fixtures.json');
+  const rawFixtures: unknown = fixtureArgument >= 0
+    ? JSON.parse(await readFile(manifestPath, 'utf8'))
+    : defaultFixtures;
+  const fixtures = parseScannerBenchmarkFixtures(rawFixtures);
+
   await mkdir(RESULTS_DIR, { recursive: true });
   const workerStart = performance.now();
   const worker = await createWorker('eng');
@@ -114,10 +163,10 @@ async function main(): Promise<void> {
   const results: BenchmarkResult[] = [];
 
   try {
-    for (const fixture of fixtures as Fixture[]) {
-      const { buffer, sourceUrl } = await loadFixtureImage(fixture);
+    for (const fixture of fixtures) {
+      const { buffer, sourceUrl } = await loadFixtureImage(fixture, manifestPath);
       const ocrStart = performance.now();
-      const evidence = await recognizeFixture(worker, buffer);
+      const evidence = await recognizeFixture(worker, buffer, fixture);
       const ocrElapsedMs = Math.round(performance.now() - ocrStart);
       const repeatStart = performance.now();
       await worker.recognize(buffer);
@@ -133,9 +182,13 @@ async function main(): Promise<void> {
       };
       const ranked = await matchTextEvidence(ocrEvidence);
       const correctCandidateRank = ranked.findIndex(({ card }) => card.id === fixture.id);
+      const fixtureReport = { ...fixture };
+      delete fixtureReport.imagePath;
       results.push({
-        ...fixture,
+        ...fixtureReport,
         sourceUrl,
+        imageWidth: fixture.imageWidth ?? CARD_WIDTH,
+        imageHeight: fixture.imageHeight ?? CARD_HEIGHT,
         nameOcr: evidence.name,
         collectorOcr: evidence.collectorNumber,
         wholeCardOcr: evidence.wholeCard,
@@ -158,7 +211,7 @@ async function main(): Promise<void> {
   }
 
   const firstFixture = fixtures[0] as Fixture;
-  const cancellationImage = await loadFixtureImage(firstFixture);
+  const cancellationImage = await loadFixtureImage(firstFixture, manifestPath);
   const cancellation = await cancellationProbe(cancellationImage.buffer);
   const controlledCases = await runControlledMatcherCases();
   const report = {
