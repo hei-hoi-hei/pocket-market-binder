@@ -1,6 +1,10 @@
 import { useEffect, useReducer } from 'react';
 import { CheckCircle2, RefreshCw, Search, X } from 'lucide-react';
-import type { ScannerCandidate, ScannerIdentificationResult } from '@/services/scanner/types';
+import type {
+  ConfirmedScannerCandidate,
+  ScannerCandidate,
+  ScannerIdentificationResult,
+} from '@/services/scanner/types';
 import {
   candidateReviewReducer,
   confirmCandidateReviewSelection,
@@ -10,7 +14,7 @@ import {
 
 interface CandidateReviewProps {
   result: ScannerIdentificationResult;
-  onConfirm: (candidate: ScannerCandidate) => void;
+  onConfirm: (candidate: ConfirmedScannerCandidate) => void;
   onRetry: () => void;
   onCancel: () => void;
   onManualSearch: () => void;

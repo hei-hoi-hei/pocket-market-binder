@@ -14,6 +14,12 @@ export interface ScannerCandidate {
   metadata?: Record<string, string | number | boolean>;
 }
 
+declare const confirmedScannerCandidateBrand: unique symbol;
+
+export type ConfirmedScannerCandidate = ScannerCandidate & {
+  readonly [confirmedScannerCandidateBrand]: true;
+};
+
 export interface ScannerIdentificationInput {
   image: Blob;
   signal?: AbortSignal;

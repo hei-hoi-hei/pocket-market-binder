@@ -2,6 +2,7 @@ export interface CatalogCard {
   id: string;
   name: string;
   set: string; // set code or name
+  setCode?: string;
   number: string;
   images: {
     low?: string;

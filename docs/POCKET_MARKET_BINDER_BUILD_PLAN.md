@@ -323,7 +323,7 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 | Explicit offline scanner fallback | Implemented | Recognition provider phase | No credentials or network access; returns truthful unavailable when no offline engine is configured; manual catalog search remains available |
 | Production scanner recognition | Unfinished active requirement | Recognition provider phase | Benchmark and lifecycle evidence required before selecting production recognition approach |
 | Provider-agnostic Candidate Review | Implemented | Scanner integration phase | Displays normalized clues and emits only an explicitly confirmed `ScannerCandidate`; no catalog ID or collection mutation |
-| Production candidate generation and catalog identity resolution | Unfinished V1 / missing | Scanner integration phase | Requires a production recognition provider and a separate canonical catalog identity resolver |
+| Production candidate generation and catalog identity provider | Unfinished V1 / missing | Scanner integration phase | Candidate Review and an injectable resolver boundary exist; live recognition/resolution providers remain unselected |
 | User-owned provider credentials | Missing / committed | Provider configuration phase | Requires secure storage and export exclusion policy |
 | Synchronization infrastructure | Partial / optional / future scope | Product decision gate | Scope requires explicit decision; pull, cursor, conflict wiring, and account lifecycle remain incomplete |
 | Narrow-width UI hardening | Partial | UI hardening phase | Targeted corrections only; no redesign |

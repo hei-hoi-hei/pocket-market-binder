@@ -1,4 +1,4 @@
-import type { ScannerCandidate } from '@/services/scanner/types';
+import type { ConfirmedScannerCandidate, ScannerCandidate } from '@/services/scanner/types';
 
 export interface CandidateReviewState {
   selectedIndex: number | null;
@@ -29,11 +29,14 @@ export function getSelectedCandidate(
 export function confirmCandidateReviewSelection(
   candidates: readonly ScannerCandidate[],
   selectedIndex: number | null,
-  onConfirm: (candidate: ScannerCandidate) => void,
-): ScannerCandidate | undefined {
+  onConfirm: (candidate: ConfirmedScannerCandidate) => void,
+): ConfirmedScannerCandidate | undefined {
   const candidate = getSelectedCandidate(candidates, selectedIndex);
-  if (candidate) onConfirm(candidate);
-  return candidate;
+  if (!candidate) return undefined;
+
+  const confirmedCandidate = candidate as ConfirmedScannerCandidate;
+  onConfirm(confirmedCandidate);
+  return confirmedCandidate;
 }
 
 export function candidateReviewReducer(

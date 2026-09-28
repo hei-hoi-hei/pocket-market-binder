@@ -30,6 +30,7 @@ describe('PokemonCatalogProvider image mapping', () => {
     const cards = await new PokemonCatalogProvider().searchCards('Pikachu');
 
     expect(cards[0]).toMatchObject({
+      setCode: sourceCard.setCode,
       imageUrlLow: sourceCard.imageUrlLow,
       imageUrlHigh: sourceCard.imageUrlHigh,
       images: {

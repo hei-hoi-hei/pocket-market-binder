@@ -62,11 +62,11 @@ V1 represents the complete original Pocket Market Binder product vision. A commi
 - Scanner/recognition is an active product requirement and implementation track. Image acquisition includes browser file input, MIME validation, temporary preview, replace/remove, and object-URL cleanup. A provider-agnostic recognition service validates image input and normalizes provider output into unresolved clues, confidence, evidence, and metadata; it does not resolve catalog identity or mutate collections. An explicit `offline` provider is the final fallback; it requires no credentials or network and returns `unavailable` because no local recognition engine is configured.
 - An isolated OCR benchmark and controlled catalog-matching benchmark exist as development tooling only.
 
-No production recognition engine is selected or registered, so identification and live candidate generation remain unavailable. Configured providers that are unavailable or fail are followed by the explicit offline provider; that provider performs no network access and fabricates no recognition result. A provider-agnostic Candidate Review component accepts normalized results, displays candidate clues, and emits only the explicitly confirmed `ScannerCandidate`. It does not establish catalog identity. Catalog identity resolution and Binder/Wishlist/Cart actions remain unfinished. The browser image picker is not native/direct camera integration. Manual catalog search remains available.
+No production recognition engine is selected or registered, so identification and live candidate generation remain unavailable. Configured providers that are unavailable or fail are followed by the explicit offline provider; that provider performs no network access and fabricates no recognition result. Candidate Review accepts normalized results, displays candidate clues, and emits only an explicitly confirmed `ScannerCandidate`. A provider-agnostic catalog-identity service now accepts that confirmed type, normalizes existing catalog-provider results, and returns resolved, ambiguous, no-match, unavailable, error, or cancelled outcomes without choosing among ambiguous records or mutating collections/persistence. It can be adapted to the existing `ICatalogProvider` search interface; no live resolver is configured. The browser image picker is not native/direct camera integration. Manual catalog search remains available.
 
 **Implemented fallback:** a provider-chain boundary that tries configured recognition providers and then the `offline` provider. The offline provider requires no API credentials, makes no HTTP/API request, uploads or persists no image, and returns a normalized `unavailable` result with a clear reason because no local engine is configured. Cancellation is handled at the orchestration boundary, including when an in-flight provider does not settle after cancellation.
 
-**Deferred:** an actual offline OCR/ML engine, production network-provider selection and live candidate generation, catalog identity resolution, native camera, and automatic Binder/Wishlist/Cart actions. Candidate Review is implemented but cannot display live recognition results until a production recognition provider is selected. The offline fallback is not a recognition engine.
+**Deferred:** an actual offline OCR/ML engine, production network-provider selection and live candidate generation, production catalog-resolver selection/integration, native camera, and automatic Binder/Wishlist/Cart actions. Candidate Review and the catalog-identity boundary are implemented, but no production recognition or identity provider is selected. The offline fallback is not a recognition engine.
 
 ### ARTWORK — ACTIVE FOUNDATION
 
@@ -93,7 +93,7 @@ No production recognition engine is selected or registered, so identification an
 - Distinct provider fallback and enrichment semantics.
 - Multiple live catalog providers and catalog resolver.
 - BYO-credential configuration for legitimately user-owned private providers.
-- Production scanner preprocessing and OCR/recognition provider, catalog matching, live candidate generation, catalog identity resolution, and Binder/Wishlist/Cart actions. The provider-neutral recognition boundary and response normalization are implemented but do not themselves identify cards. Candidate Review and explicit candidate confirmation are implemented as a provider-agnostic UI boundary.
+- Production scanner preprocessing and OCR/recognition provider, catalog matching, live candidate generation, production catalog-resolver selection, and Binder/Wishlist/Cart actions. Provider-neutral recognition and catalog-identity boundaries plus Candidate Review are implemented; none provides live recognition or mutates collections.
 - TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
 - Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
 - Narrow-width audit and targeted responsive fixes without redesign.
@@ -164,7 +164,7 @@ Truthful unavailable result
 Manual catalog search remains available
 ```
 
-Production recognition engine and live candidate generation: not selected or registered. Candidate Review and explicit candidate confirmation are implemented; they emit only a recognition candidate. Catalog identity resolution and Binder insertion are not implemented.
+Production recognition engine, live candidate generation, and catalog identity provider: not selected or registered. Candidate Review emits only an explicitly confirmed recognition candidate; the identity boundary can normalize injected catalog results but has no live provider configured. Binder insertion remains unimplemented.
 
 Scanner providers produce candidates; they do not directly mutate the binder. Identity verification is metadata verification for known cards, not image recognition.
 
@@ -195,7 +195,7 @@ Future coding agents must preserve:
 3. Repair and test the TCGdex pricing adapter without changing `Card`.
 4. Review and commit the verified recognition boundary before starting another scanner slice.
 5. Select and integrate a local recognition provider only after OCR/preprocessing evidence supports that choice.
-6. Implement catalog identity resolution only after a provider can produce useful evidence; Candidate Review is implemented and must remain separate from catalog identity and collection actions.
+6. Select a production catalog identity provider only after recognition can produce useful evidence; keep the implemented identity boundary separate from Candidate Review and collection actions.
 7. Complete synchronization only if product scope is explicitly confirmed.
 8. Harden narrow mobile layouts with targeted corrections.
 9. Create native projects only after the PWA baseline is stable.

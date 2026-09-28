@@ -136,10 +136,10 @@ Current implementation status:
 - **Identification:** Missing from production; the installed OCR dependency is used only by the isolated development benchmark.
 - **Candidate generation:** The boundary can return structured unresolved recognition candidates, but no production provider currently generates them.
 - **Candidate Review:** Implemented as a provider-agnostic component; it displays normalized clues and emits only a candidate after explicit user confirmation. No live recognition results are available yet.
-- **Scanner-to-catalog identity resolution:** Missing.
+- **Scanner-to-catalog identity boundary:** Implemented as an injectable service. It accepts only a review-confirmed candidate, preserves the original clues, normalizes exact existing catalog matches, and reports ambiguous, no-match, unavailable, malformed/error, or cancelled outcomes. No live resolver is configured.
 - **Scanner-to-Binder/Wishlist/Cart action:** Missing.
 
-Thus the scanner is an active product requirement whose image-acquisition foundation, explicit no-network unavailable fallback, and provider-agnostic Candidate Review are implemented, while actual recognition and catalog identity resolution remain unfinished. The offline provider is not a recognition engine and does not fabricate candidates or catalog identity. Candidate confirmation emits only a `ScannerCandidate`; it does not mutate collection state. Manual catalog search remains available.
+Thus the scanner is an active product requirement whose image-acquisition foundation, explicit no-network unavailable fallback, provider-agnostic Candidate Review, and catalog-identity boundary are implemented, while actual recognition and live catalog resolution remain unfinished. The offline provider is not a recognition engine and does not fabricate candidates or catalog identity. Confirmed candidates are resolved only against existing provider records; resolution does not mutate collection state or persistence. Manual catalog search remains available.
 
 The scanner should be developed as a complete workflow rather than as an isolated camera feature.
 
@@ -704,7 +704,7 @@ This section distinguishes **design intent from actual implementation**.
 | Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production recognition engine is selected or registered. |
 | Candidate generation | **Missing** | Structured unresolved candidates can be normalized, but no production provider generates live results. |
 | Candidate review/confirmation | **Implemented boundary** | Provider-agnostic UI displays normalized candidate clues and emits the explicitly confirmed candidate only; catalog identity is not assigned. |
-| Scanner-to-catalog identity | **Missing** | No image-derived clue resolution to canonical catalog ID. |
+| Scanner-to-catalog identity boundary | **Implemented; no live provider configured** | Requires a confirmed candidate; only normalized existing catalog records can supply an ID; ambiguous/no-match/provider failure remain explicit. |
 | Scanner-to-collection action | **Missing** | Manual collection action exists; scanner results cannot mutate collection. |
 | Scanner failure/manual fallback | **Partially Implemented** | Provider-unavailable/error results fall through to the offline unavailable result; manual catalog search remains available. |
 | Sync | **Partial / optional / future-scope** | Infrastructure is incomplete and optional pending an explicit product decision. |

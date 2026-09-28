@@ -5,12 +5,12 @@ import { useImageAcquisition } from '@/hooks/useImageAcquisition';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useNav } from '@/context/NavContext';
 import { CandidateReview } from '@/components/scanner/CandidateReview';
-import type { ScannerCandidate, ScannerIdentificationResult } from '@/services/scanner/types';
+import type { ConfirmedScannerCandidate, ScannerIdentificationResult } from '@/services/scanner/types';
 
 type ScannerScreenProps =
   | {
       reviewResult: ScannerIdentificationResult;
-      onCandidateConfirmed: (candidate: ScannerCandidate) => void;
+      onCandidateConfirmed: (candidate: ConfirmedScannerCandidate) => void;
     }
   | {
       reviewResult?: null;
