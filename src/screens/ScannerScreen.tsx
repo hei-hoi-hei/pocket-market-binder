@@ -1,14 +1,32 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { AlertCircle, Camera, CheckCircle2, ImagePlus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useImageAcquisition } from '@/hooks/useImageAcquisition';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useNav } from '@/context/NavContext';
+import { CandidateReview } from '@/components/scanner/CandidateReview';
+import type { ScannerCandidate, ScannerIdentificationResult } from '@/services/scanner/types';
 
-export function ScannerScreen() {
+type ScannerScreenProps =
+  | {
+      reviewResult: ScannerIdentificationResult;
+      onCandidateConfirmed: (candidate: ScannerCandidate) => void;
+    }
+  | {
+      reviewResult?: null;
+      onCandidateConfirmed?: never;
+    };
+
+export function ScannerScreen(props: ScannerScreenProps) {
   const { go } = useNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const { image, error, selectFile, clearImage, handlePreviewError } = useImageAcquisition();
+  const [reviewDismissed, setReviewDismissed] = useState(false);
+  const reviewResult = props.reviewResult ?? null;
+
+  useEffect(() => {
+    setReviewDismissed(false);
+  }, [reviewResult]);
 
   const openFilePicker = () => inputRef.current?.click();
 
@@ -118,6 +136,19 @@ export function ScannerScreen() {
         <div role="alert" className="mt-4 rounded-lg border border-fire-200 bg-fire-50 p-3 text-sm text-fire-700">
           {error}
         </div>
+      )}
+
+      {reviewResult && props.onCandidateConfirmed && !reviewDismissed && (
+        <CandidateReview
+          result={reviewResult}
+          onConfirm={props.onCandidateConfirmed}
+          onRetry={() => {
+            setReviewDismissed(true);
+            openFilePicker();
+          }}
+          onCancel={() => setReviewDismissed(true)}
+          onManualSearch={() => go('search')}
+        />
       )}
 
       <button

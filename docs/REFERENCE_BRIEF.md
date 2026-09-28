@@ -135,11 +135,11 @@ Current implementation status:
 - **Recognition boundary:** Implemented as a provider-neutral local-image service with runtime response normalization. An explicit `offline` provider is the final fallback; it requires no credentials, makes no network request, and returns `unavailable` when no offline recognition engine is configured.
 - **Identification:** Missing from production; the installed OCR dependency is used only by the isolated development benchmark.
 - **Candidate generation:** The boundary can return structured unresolved recognition candidates, but no production provider currently generates them.
-- **User review/confirmation:** Missing.
+- **Candidate Review:** Implemented as a provider-agnostic component; it displays normalized clues and emits only a candidate after explicit user confirmation. No live recognition results are available yet.
 - **Scanner-to-catalog identity resolution:** Missing.
 - **Scanner-to-Binder/Wishlist/Cart action:** Missing.
 
-Thus the scanner is an active product requirement whose image-acquisition foundation and explicit no-network unavailable fallback are implemented, while actual recognition and downstream candidate/confirmation/collection integration remain unfinished. The offline provider is not a recognition engine and does not fabricate candidates or catalog identity. Manual catalog search remains available. Recognition must produce candidates rather than mutate collection state, and recognition failure must offer recovery such as retry/replace or manual search.
+Thus the scanner is an active product requirement whose image-acquisition foundation, explicit no-network unavailable fallback, and provider-agnostic Candidate Review are implemented, while actual recognition and catalog identity resolution remain unfinished. The offline provider is not a recognition engine and does not fabricate candidates or catalog identity. Candidate confirmation emits only a `ScannerCandidate`; it does not mutate collection state. Manual catalog search remains available.
 
 The scanner should be developed as a complete workflow rather than as an isolated camera feature.
 
@@ -702,7 +702,8 @@ This section distinguishes **design intent from actual implementation**.
 | Recognition boundary | **Implemented** | Validates non-empty image MIME input and normalizes untrusted provider responses into clues, confidence, evidence, and metadata; no catalog IDs or collection mutations. |
 | Offline recognition fallback | **Implemented** | Explicit `offline` provider requires no credentials/network and returns unavailable without fabricating results when no local engine is configured. |
 | Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production recognition engine is selected or registered. |
-| Candidate generation/review | **Partially Implemented** | Structured unresolved candidates can be normalized from a provider response; no live provider generates them and no review/confirmation UI exists. |
+| Candidate generation | **Missing** | Structured unresolved candidates can be normalized, but no production provider generates live results. |
+| Candidate review/confirmation | **Implemented boundary** | Provider-agnostic UI displays normalized candidate clues and emits the explicitly confirmed candidate only; catalog identity is not assigned. |
 | Scanner-to-catalog identity | **Missing** | No image-derived clue resolution to canonical catalog ID. |
 | Scanner-to-collection action | **Missing** | Manual collection action exists; scanner results cannot mutate collection. |
 | Scanner failure/manual fallback | **Partially Implemented** | Provider-unavailable/error results fall through to the offline unavailable result; manual catalog search remains available. |

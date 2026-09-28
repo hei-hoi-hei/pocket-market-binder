@@ -35,7 +35,7 @@ Pocket Market Binder is a mobile-first Progressive Web App (PWA) designed as a d
 - Not a commercial marketplace or trading platform.
 - Not an official Pokémon product or affiliate.
 - Not an investment portfolio tracker or financial advisory tool.
-- Scanner/recognition is an active product requirement and implementation track, but is not complete: browser image acquisition exists partially; production recognition, candidate review, catalog identity resolution, and collection integration are unfinished.
+- Scanner/recognition is an active product requirement and implementation track, but is not complete: browser image acquisition and provider-agnostic Candidate Review exist; production recognition, catalog identity resolution, and collection integration are unfinished. Candidate Review emits only an explicitly confirmed recognition candidate, not a catalog identity.
 
 ## Current Overall Development Status
 - **Implemented & Verified:** Core PWA shell, responsive navigation, IndexedDB persistence, collection management (binder, wishlist, cart), TCGdex catalog search and detail views, artwork resolution, and the V1 Pricing Foundation (provider interfaces, currency normalization, median aggregation, outlier filtering, multi-factor confidence, provider isolation, and stubbed adapters).

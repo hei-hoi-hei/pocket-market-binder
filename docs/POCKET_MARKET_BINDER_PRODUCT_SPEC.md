@@ -566,7 +566,7 @@ The cart item may then be removed or marked purchased.
 
 # 24. Scanner
 
-**Historical scope note:** This specification originally described scanning as not a V1 blocker. Current product direction supersedes that scope status: scanner/recognition is an active product requirement and implementation track. The committed browser image-acquisition foundation is partial; production recognition and candidate-to-collection workflow are unfinished.
+**Historical scope note:** This specification originally described scanning as not a V1 blocker. Current product direction supersedes that scope status: scanner/recognition is an active product requirement and implementation track. Browser image acquisition and provider-agnostic Candidate Review are implemented; production recognition, catalog identity resolution, and candidate-to-collection workflow remain unfinished.
 
 The application should support a `ScannerProvider`:
 
@@ -587,6 +587,8 @@ Expected workflow:
     Binder
 
 Configured recognition providers may require internet. An explicit no-network offline provider is always the final fallback; without a configured local recognition engine it returns an unavailable result and does not fabricate candidates. Manual catalog search remains available.
+
+Candidate Review accepts normalized `ScannerCandidate` results, presents available clues and informational confidence, and requires explicit user confirmation before emitting the selected candidate. Confirmation does not establish catalog identity and does not modify Binder, Wishlist, or Cart. Production recognition and catalog identity resolution remain deferred.
 
 Manual addition must always remain available.
 
