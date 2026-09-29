@@ -13,6 +13,20 @@ export interface RankedCandidate {
   score: number;
 }
 
+export interface ScannerBenchmarkCandidate {
+  rank: number;
+  id: string;
+  name: string;
+  setCode: string;
+  collectorNumber: string;
+  score: number;
+}
+
+export type ScannerBenchmarkMatchStatus =
+  | 'not-queried-no-ocr-name'
+  | 'candidates-returned'
+  | 'no-candidates-or-tcgdex-failure';
+
 function normalizeText(value: string): string {
   return value
     .normalize('NFKD')
@@ -46,6 +60,30 @@ export function rankCandidates(candidates: Card[], evidence: ScannerTextEvidence
       };
     })
     .sort((a, b) => b.score - a.score);
+}
+
+export function describeRankedCandidates(
+  candidates: readonly {
+    card: Pick<Card, 'id' | 'name' | 'setCode' | 'setNumber'>;
+    score: number;
+  }[],
+): ScannerBenchmarkCandidate[] {
+  return candidates.map(({ card, score }, index) => ({
+    rank: index + 1,
+    id: card.id,
+    name: card.name,
+    setCode: card.setCode,
+    collectorNumber: card.setNumber,
+    score,
+  }));
+}
+
+export function getScannerBenchmarkMatchStatus(
+  ocrName: string,
+  candidateCount: number,
+): ScannerBenchmarkMatchStatus {
+  if (!ocrName.trim()) return 'not-queried-no-ocr-name';
+  return candidateCount > 0 ? 'candidates-returned' : 'no-candidates-or-tcgdex-failure';
 }
 
 export async function matchTextEvidence(evidence: ScannerTextEvidence): Promise<RankedCandidate[]> {

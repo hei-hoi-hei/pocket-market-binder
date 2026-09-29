@@ -52,6 +52,8 @@ Choose labels that describe the actual photo/card, not a quality judgment. Inclu
 
 No representative real card photographs or real-photo recognition results are checked into the repository. Do not commit private collection photos or manifests containing sensitive collection details. Keep generated reports and OCR caches in the ignored `benchmark-results/` and `benchmark-cache/` directories; custom image paths/manifests remain the contributor's responsibility to keep out of Git. Reports identify local images by filename only, but OCR text and expected identities may still be sensitive.
 
+Each completed fixture row records the expected `id` (when applicable), all three OCR text outputs, OCR/name/number comparisons, the TCGdex query, candidate count, and each returned candidate's rank, catalog ID, name, set code, collector number, and matcher score. It records whether the expected candidate was present, its rank or `null`, and whether a no-match fixture produced any candidate. `matchingStatus` distinguishes a blank OCR name (`not-queried-no-ocr-name`), candidates returned, and `no-candidates-or-tcgdex-failure`. The current TCGdex catalog provider converts HTTP/network errors to an empty result, so the runner cannot distinguish those failures from a completed search with no candidates. A local file or OCR error aborts the run rather than writing a per-image error row; inspect the command's error output and rerun after correcting the issue.
+
 ## Provider-neutral result and review contract
 
 When additional providers are evaluated, preserve the same labeled image corpus and record one result per image/provider using the existing normalized `ScannerIdentificationResult` shape:

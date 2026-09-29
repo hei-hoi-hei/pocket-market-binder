@@ -2,7 +2,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { createWorker } from 'tesseract.js';
 import defaultFixtures from './scanner-benchmark-fixtures.json';
-import { matchTextEvidence, type ScannerTextEvidence } from './scanner-benchmark-matcher';
+import {
+  describeRankedCandidates,
+  getScannerBenchmarkMatchStatus,
+  matchTextEvidence,
+  type ScannerTextEvidence,
+  type ScannerBenchmarkMatchStatus,
+} from './scanner-benchmark-matcher';
 import {
   describeFixtureImage,
   assessScannerCandidates,
@@ -34,7 +40,9 @@ interface BenchmarkResult extends Fixture {
   collectorNormalized: boolean;
   query: string;
   ocrUsable: boolean;
+  matchingStatus: ScannerBenchmarkMatchStatus;
   candidateCount: number;
+  candidates: ReturnType<typeof describeRankedCandidates>;
   correctCandidatePresent: boolean;
   correctCandidateRank: number | null;
   falsePositive: boolean;
@@ -206,7 +214,9 @@ async function main(): Promise<void> {
         collectorNormalized: normalizedCollector === normalizedExpectedCollector,
         query: evidence.name,
         ocrUsable: Boolean(normalizedName || normalizedCollector),
+        matchingStatus: getScannerBenchmarkMatchStatus(evidence.name, ranked.length),
         candidateCount: ranked.length,
+        candidates: describeRankedCandidates(ranked),
         ...assessment,
         ocrElapsedMs,
         repeatRecognitionMs,

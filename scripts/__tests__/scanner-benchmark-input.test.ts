@@ -7,6 +7,10 @@ import {
   resolveOcrRegion,
 } from '../scanner-benchmark-input';
 import type { ScannerBenchmarkFixture } from '../scanner-benchmark-input';
+import {
+  describeRankedCandidates,
+  getScannerBenchmarkMatchStatus,
+} from '../scanner-benchmark-matcher';
 
 const localFixture: ScannerBenchmarkFixture = {
   id: 'sv03.5-006',
@@ -103,5 +107,32 @@ describe('scanner benchmark inputs', () => {
       2000,
       { left: 0, top: 0, width: 1, height: 0.2 },
     )).toEqual({ left: 80, top: 80, width: 840, height: 320 });
+  });
+
+  it('reports ranked catalog candidate details and honest matching status', () => {
+    const candidates = describeRankedCandidates([{
+      card: {
+        id: 'sv03.5-006',
+        name: 'Charizard ex',
+        setCode: 'sv03.5',
+        setNumber: '006',
+      },
+      score: 9,
+    }]);
+
+    expect(candidates).toEqual([{
+      rank: 1,
+      id: 'sv03.5-006',
+      name: 'Charizard ex',
+      setCode: 'sv03.5',
+      collectorNumber: '006',
+      score: 9,
+    }]);
+    expect(getScannerBenchmarkMatchStatus('Charizard ex', candidates.length))
+      .toBe('candidates-returned');
+    expect(getScannerBenchmarkMatchStatus('', 0))
+      .toBe('not-queried-no-ocr-name');
+    expect(getScannerBenchmarkMatchStatus('unreadable text', 0))
+      .toBe('no-candidates-or-tcgdex-failure');
   });
 });
