@@ -28,9 +28,10 @@ const pikachu: ScannerCandidate = {
 };
 
 const descriptor: ReferenceDescriptor = {
+  representation: 'compact-descriptor',
   kind: 'perceptual-hash',
+  value: '0123456789abcdef',
   version: 'hash-v1',
-  data: new Uint8Array([1, 2, 3, 4]),
   dimensions: [256],
   metadata: { colorSpace: 'gray', rotation: 0 },
 };
@@ -101,6 +102,116 @@ describe('local scanner reference store', () => {
     await expect(store.listActive()).resolves.toEqual([saved]);
   });
 
+  it('defaults newly created references to local ownership', async () => {
+    const saved = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+
+    expect(saved.ownershipScope).toBe('local');
+  });
+
+  it('supports account-owned references without assigning an account ID', async () => {
+    const saved = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review', ownershipScope: 'account' },
+    );
+
+    expect(saved.ownershipScope).toBe('account');
+    expect(saved).not.toHaveProperty('accountId');
+  });
+
+  it('rejects account-scoped raw-image-like binary payloads', async () => {
+    const rawImageLike = {
+      kind: 'raw-photo',
+      version: 'image-v1',
+      data: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]),
+    } as unknown as ReferenceDescriptor;
+
+    await expect(store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      rawImageLike,
+      { confirmationMethod: 'candidate-review', ownershipScope: 'account' },
+    )).rejects.toThrow(/compact descriptor representation/);
+    await expect(store.listActive()).resolves.toEqual([]);
+  });
+
+  it('does not accept Blob payloads as descriptors', async () => {
+    const blobPayload = {
+      representation: 'compact-descriptor',
+      kind: 'perceptual-hash',
+      version: 'hash-v1',
+      value: '0123456789abcdef',
+      image: new Blob(['photo']),
+    } as unknown as ReferenceDescriptor;
+
+    await expect(store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      blobPayload,
+      { confirmationMethod: 'candidate-review' },
+    )).rejects.toThrow(/compact descriptor representation/);
+  });
+
+  it('keeps local and account references distinguishable for the same identity', async () => {
+    const local = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const account = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review', ownershipScope: 'account' },
+    );
+
+    await expect(store.findByIdentity(identity(pikachu))).resolves.toEqual([local, account]);
+    await expect(store.listActive()).resolves.toEqual([local, account]);
+    expect(new Set([local.ownershipScope, account.ownershipScope])).toEqual(
+      new Set(['local', 'account']),
+    );
+  });
+
+  it('loads legacy references without ownership as local without rewriting them', async () => {
+    const saved = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const database = await openLocalDatabase();
+    const writeTransaction = database.transaction('scanner-recognition-references', 'readwrite');
+    const legacyRecord = { ...saved };
+    delete (legacyRecord as Partial<typeof saved>).ownershipScope;
+    legacyRecord.descriptor = {
+      kind: 'perceptual-hash',
+      version: 'hash-v1',
+      data: new Uint8Array([1, 2, 3, 4]),
+    } as unknown as ReferenceDescriptor;
+    writeTransaction.objectStore('scanner-recognition-references').put(legacyRecord);
+    await new Promise<void>((resolve, reject) => {
+      writeTransaction.oncomplete = () => resolve();
+      writeTransaction.onerror = () => reject(writeTransaction.error);
+      writeTransaction.onabort = () => reject(writeTransaction.error);
+    });
+
+    const loaded = await store.findByIdentity(identity(pikachu));
+    expect(loaded[0].ownershipScope).toBe('local');
+    expect(loaded[0].descriptor).toMatchObject({
+      kind: 'perceptual-hash',
+      version: 'hash-v1',
+      data: new Uint8Array([1, 2, 3, 4]),
+    });
+
+    const readTransaction = database.transaction('scanner-recognition-references', 'readonly');
+    const storedRecord = readTransaction.objectStore('scanner-recognition-references').get(saved.referenceId);
+    const rawStoredRecord = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      storedRecord.onsuccess = () => resolve(storedRecord.result as Record<string, unknown>);
+      storedRecord.onerror = () => reject(storedRecord.error);
+    });
+    expect(rawStoredRecord).not.toHaveProperty('ownershipScope');
+  });
+
   it('does not treat equal catalog IDs from different namespaces as the same identity', async () => {
     const first = confirmScannerCandidate(pikachu);
     const second = confirmScannerCandidate({
@@ -159,7 +270,7 @@ describe('local scanner reference store', () => {
     );
     const second = await store.saveConfirmedReference(
       confirmScannerCandidate(pikachu),
-      { ...descriptor, data: new Uint8Array([5, 6, 7, 8]) },
+      { ...descriptor, value: 'fedcba9876543210' },
       { confirmationMethod: 'manual-catalog-search', captureConditions: ['top-loader'] },
     );
 
@@ -190,7 +301,7 @@ describe('local scanner reference store', () => {
     expect(Date.parse(saved.provenance.confirmedAt)).not.toBeNaN();
   });
 
-  it('preserves descriptor kind, version, bytes, dimensions, and metadata', async () => {
+  it('preserves the descriptor representation, version, value, dimensions, and metadata', async () => {
     const saved = await store.saveConfirmedReference(
       confirmScannerCandidate(pikachu),
       descriptor,
@@ -198,7 +309,7 @@ describe('local scanner reference store', () => {
     );
 
     expect(saved.descriptor).toEqual(descriptor);
-    expect(saved.descriptor.data).not.toBe(descriptor.data);
+    expect(saved.descriptor).not.toBe(descriptor);
   });
 
   it('does not mutate Binder persistence when creating a reference', async () => {

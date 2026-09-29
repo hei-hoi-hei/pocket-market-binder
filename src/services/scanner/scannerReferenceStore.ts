@@ -7,6 +7,10 @@ import {
   openLocalDatabase,
   RECOGNITION_REFERENCES_STORE,
 } from '../storage';
+import {
+  getSyncBoundary,
+  type SyncOwnershipScope,
+} from '../sync/syncBoundary';
 
 export interface ScannerCatalogIdentity {
   catalogProvider: string;
@@ -20,6 +24,15 @@ export interface ScannerCatalogIdentity {
 }
 
 export interface ReferenceDescriptor {
+  representation: 'compact-descriptor';
+  kind: 'perceptual-hash';
+  version: string;
+  value: string;
+  dimensions?: number[];
+  metadata?: Record<string, string | number | boolean>;
+}
+
+export interface LegacyReferenceDescriptor {
   kind: string;
   version: string;
   data: Uint8Array;
@@ -27,8 +40,11 @@ export interface ReferenceDescriptor {
   metadata?: Record<string, string | number | boolean>;
 }
 
+export type StoredReferenceDescriptor = ReferenceDescriptor | LegacyReferenceDescriptor;
+
 export interface ScannerReferenceCreationOptions {
   confirmationMethod: 'candidate-review' | 'manual-catalog-search';
+  ownershipScope?: SyncOwnershipScope;
   captureConditions?: string[];
   qualityNotes?: string;
 }
@@ -39,7 +55,8 @@ export interface ScannerRecognitionReference {
   referenceId: string;
   identityKey: string;
   identity: ScannerCatalogIdentity;
-  descriptor: ReferenceDescriptor;
+  descriptor: StoredReferenceDescriptor;
+  ownershipScope: SyncOwnershipScope;
   createdAt: string;
   revision: number;
   state: 'active' | 'retired';
@@ -110,12 +127,16 @@ function validateIdentity(identity: ScannerCatalogIdentity): ScannerCatalogIdent
 
 function validateDescriptor(descriptor: ReferenceDescriptor): ReferenceDescriptor {
   if (
-    !descriptor.kind.trim() ||
+    !descriptor ||
+    descriptor.representation !== 'compact-descriptor' ||
+    descriptor.kind !== 'perceptual-hash' ||
     !descriptor.version.trim() ||
-    !(descriptor.data instanceof Uint8Array) ||
-    descriptor.data.byteLength === 0
+    !/^[\da-f]{16}$/i.test(descriptor.value) ||
+    Object.keys(descriptor).some((key) =>
+      !['representation', 'kind', 'version', 'value', 'dimensions', 'metadata'].includes(key),
+    )
   ) {
-    throw new Error('A scanner reference requires a versioned, non-empty descriptor.');
+    throw new Error('A scanner reference requires a versioned compact descriptor representation.');
   }
   if (
     descriptor.dimensions?.some((dimension) =>
@@ -134,7 +155,43 @@ function validateDescriptor(descriptor: ReferenceDescriptor): ReferenceDescripto
     }
   }
   return {
-    ...descriptor,
+    representation: descriptor.representation,
+    kind: descriptor.kind,
+    version: descriptor.version,
+    value: descriptor.value.toLowerCase(),
+    ...(descriptor.dimensions ? { dimensions: [...descriptor.dimensions] } : {}),
+    ...(descriptor.metadata ? { metadata: { ...descriptor.metadata } } : {}),
+  };
+}
+
+function cloneStoredDescriptor(
+  descriptor: StoredReferenceDescriptor,
+  ownershipScope: SyncOwnershipScope,
+): StoredReferenceDescriptor {
+  if (
+    typeof descriptor === 'object' &&
+    descriptor !== null &&
+    'representation' in descriptor
+  ) {
+    return validateDescriptor(descriptor);
+  }
+  if (
+    ownershipScope !== 'local' ||
+    typeof descriptor !== 'object' ||
+    descriptor === null ||
+    !('data' in descriptor) ||
+    !(descriptor.data instanceof Uint8Array) ||
+    descriptor.data.byteLength === 0 ||
+    typeof descriptor.kind !== 'string' ||
+    !descriptor.kind.trim() ||
+    typeof descriptor.version !== 'string' ||
+    !descriptor.version.trim()
+  ) {
+    throw new Error('Legacy binary reference descriptors are supported only for existing local records.');
+  }
+  return {
+    kind: descriptor.kind,
+    version: descriptor.version,
     data: new Uint8Array(descriptor.data),
     ...(descriptor.dimensions ? { dimensions: [...descriptor.dimensions] } : {}),
     ...(descriptor.metadata ? { metadata: { ...descriptor.metadata } } : {}),
@@ -155,8 +212,11 @@ function validateOptions(options: ScannerReferenceCreationOptions): ScannerRefer
   if (options.qualityNotes !== undefined && !options.qualityNotes.trim()) {
     throw new Error('Quality notes must not be empty when provided.');
   }
+  const ownershipScope = options.ownershipScope ?? 'local';
+  getSyncBoundary('scanner-reference', ownershipScope);
   return {
     ...options,
+    ownershipScope,
     ...(options.captureConditions
       ? { captureConditions: options.captureConditions.map((condition) => condition.trim()) }
       : {}),
@@ -165,10 +225,13 @@ function validateOptions(options: ScannerReferenceCreationOptions): ScannerRefer
 }
 
 function cloneReference(reference: ScannerRecognitionReference): ScannerRecognitionReference {
+  const ownershipScope = reference.ownershipScope ?? 'local';
+  getSyncBoundary('scanner-reference', ownershipScope);
   return {
     ...reference,
     identity: { ...reference.identity },
-    descriptor: validateDescriptor(reference.descriptor),
+    descriptor: cloneStoredDescriptor(reference.descriptor, ownershipScope),
+    ownershipScope,
     provenance: {
       ...reference.provenance,
       recognitionProviders: [...reference.provenance.recognitionProviders],
@@ -260,6 +323,7 @@ function createReference(
     identityKey: identityKey(identity),
     identity,
     descriptor: validateDescriptor(descriptor),
+    ownershipScope: validatedOptions.ownershipScope ?? 'local',
     createdAt,
     revision: 1,
     state: 'active',
