@@ -67,6 +67,18 @@ describe('CandidateReview', () => {
     expect(markup).toContain('disabled=""');
   });
 
+  it('labels a strong candidate as a suggestion while keeping confirmation explicit', () => {
+    const markup = renderReview({
+      status: 'success',
+      candidates: [pikachu],
+      decision: 'strong-candidate',
+    });
+
+    expect(markup).toContain('Strong suggestion — confirmation required');
+    expect(markup).toContain('Confirm selected candidate');
+    expect(markup).toContain('disabled=""');
+  });
+
   it('renders multiple candidates independently for selection', () => {
     const markup = renderReview({ status: 'success', candidates: [pikachu, eevee] });
 
@@ -133,14 +145,14 @@ describe('CandidateReview', () => {
     })).toContain('Recognition could not be completed: Provider failed.');
   });
 
-  it('labels incomplete candidate details as unresolved and displays low confidence informationally', () => {
+  it('labels incomplete candidate details as unresolved and displays provider scores as uncalibrated', () => {
     const markup = renderReview({ status: 'success', candidates: [eevee] });
 
     expect(markup).toContain('Name');
     expect(markup).toContain('Eevee');
     expect(markup).toContain('Not provided (unresolved)');
-    expect(markup).toContain('12% (informational only)');
-    expect(markup).toContain('no score confirms a card');
+    expect(markup).toContain('0.12 (uncalibrated provider value)');
+    expect(markup).toContain('Provider scores are uncalibrated');
   });
 
   it('displays available name, collector number, set code, confidence, and evidence', () => {
@@ -150,9 +162,9 @@ describe('CandidateReview', () => {
     expect(markup).toContain('025');
     expect(markup).toContain('Set code');
     expect(markup).toContain('SVP');
-    expect(markup).toContain('42% (informational only)');
+    expect(markup).toContain('0.42 (uncalibrated provider value)');
     expect(markup).toContain('printed name');
-    expect(markup).toContain('88% evidence confidence');
+    expect(markup).toContain('0.88 provider score; uncalibrated');
   });
 
   it('labels a suggested catalog ID as unverified during candidate review', () => {

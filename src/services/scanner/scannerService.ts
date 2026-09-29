@@ -64,11 +64,26 @@ function normalizeEvidence(value: unknown): ScannerEvidence[] | null {
     const label = readOptionalText(item, 'label');
     const evidenceValue = readOptionalText(item, 'value');
     const confidence = readConfidence(item, 'confidence');
-    if (!label || !evidenceValue || confidence === null) return null;
+    const provider = readOptionalText(item, 'provider');
+    const type = readOptionalText(item, 'type');
+    const relation = readOptionalText(item, 'relation');
+    const strength = readOptionalText(item, 'strength');
+    const metadata = normalizeMetadata(item.metadata);
+    if (
+      !label || !evidenceValue || confidence === null || provider === null || type === null ||
+      relation === null || strength === null || metadata === null ||
+      (relation !== undefined && !['supports', 'contradicts', 'unavailable', 'inconclusive'].includes(relation)) ||
+      (strength !== undefined && !['weak', 'partial', 'strong', 'exact', 'unavailable', 'contradictory'].includes(strength))
+    ) return null;
     evidence.push({
       label,
       value: evidenceValue,
       ...(confidence === undefined ? {} : { confidence }),
+      ...(provider ? { provider } : {}),
+      ...(type ? { type } : {}),
+      ...(relation ? { relation: relation as ScannerEvidence['relation'] } : {}),
+      ...(strength ? { strength: strength as ScannerEvidence['strength'] } : {}),
+      ...(metadata ? { metadata } : {}),
     });
   }
   return evidence;
@@ -96,9 +111,14 @@ function normalizeCandidate(value: unknown): ScannerCandidate | null {
   if (!isRecord(value)) return null;
 
   const catalogId = readOptionalText(value, 'catalogId');
+  const catalogProvider = readOptionalText(value, 'catalogProvider');
+  const gameKey = readOptionalText(value, 'gameKey');
   const name = readOptionalText(value, 'name');
   const collectorNumber = readOptionalText(value, 'collectorNumber');
   const setCode = readOptionalText(value, 'setCode');
+  const language = readOptionalText(value, 'language');
+  const variant = readOptionalText(value, 'variant');
+  const provider = readOptionalText(value, 'provider');
   const region = readCandidateRegion(value.region);
   const confidence = readConfidence(value, 'confidence');
   const evidence = normalizeEvidence(value.evidence);
@@ -106,9 +126,14 @@ function normalizeCandidate(value: unknown): ScannerCandidate | null {
 
   if (
     catalogId === null ||
+    catalogProvider === null ||
+    gameKey === null ||
     name === null ||
     collectorNumber === null ||
     setCode === null ||
+    language === null ||
+    variant === null ||
+    provider === null ||
     region === null ||
     confidence === null ||
     evidence === null ||
@@ -120,9 +145,14 @@ function normalizeCandidate(value: unknown): ScannerCandidate | null {
 
   return {
     ...(catalogId ? { catalogId } : {}),
+    ...(catalogProvider ? { catalogProvider } : {}),
+    ...(gameKey ? { gameKey } : {}),
     ...(name ? { name } : {}),
     ...(collectorNumber ? { collectorNumber } : {}),
     ...(setCode ? { setCode } : {}),
+    ...(language ? { language } : {}),
+    ...(variant ? { variant } : {}),
+    ...(provider ? { provider } : {}),
     ...(region ? { region } : {}),
     ...(confidence === undefined ? {} : { confidence }),
     ...(evidence.length > 0 ? { evidence } : {}),

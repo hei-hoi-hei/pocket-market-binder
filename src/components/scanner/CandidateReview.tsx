@@ -26,6 +26,9 @@ function CandidateDetails({ candidate, index }: { candidate: ScannerCandidate; i
     ['Name', candidate.name],
     ['Collector number', candidate.collectorNumber],
     ['Set code', candidate.setCode],
+    ['Language', candidate.language],
+    ['Printing / variant', candidate.variant],
+    ['Provider provenance', candidate.providers?.join(', ') ?? candidate.provider],
   ] as const;
 
   return (
@@ -41,11 +44,11 @@ function CandidateDetails({ candidate, index }: { candidate: ScannerCandidate; i
           </div>
         ))}
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-leather-500">Confidence</dt>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-leather-500">Provider score</dt>
           <dd className="text-leather-800">
             {candidate.confidence === undefined
               ? 'Not provided'
-              : `${Math.round(candidate.confidence * 100)}% (informational only)`}
+              : `${candidate.confidence} (uncalibrated provider value)`}
           </dd>
         </div>
       </dl>
@@ -56,8 +59,10 @@ function CandidateDetails({ candidate, index }: { candidate: ScannerCandidate; i
             {candidate.evidence.map((item, evidenceIndex) => (
               <li key={`${item.label}-${evidenceIndex}`}>
                 <span className="font-semibold">{item.label}:</span> {item.value}
+                {item.provider && <span className="text-leather-500"> [{item.provider}]</span>}
+                {item.relation && <span className="text-leather-500"> ({item.relation})</span>}
                 {item.confidence !== undefined && (
-                  <span className="text-leather-500"> ({Math.round(item.confidence * 100)}% evidence confidence)</span>
+                  <span className="text-leather-500"> ({item.confidence} provider score; uncalibrated)</span>
                 )}
               </li>
             ))}
@@ -119,6 +124,25 @@ export function CandidateReview({
       <p className="mt-1 text-sm text-leather-600">
         Review recognition clues only. These are not confirmed catalog identities or collection entries.
       </p>
+      {result.decision && (
+        <p className="mt-2 text-sm font-semibold text-leather-700" role="status">
+          Recognition outcome: {result.decision === 'strong-candidate'
+            ? 'strong candidate'
+            : result.decision === 'candidate-confirmation'
+              ? 'candidate confirmation'
+              : 'insufficient'}. Confirmation is still required.
+        </p>
+      )}
+      {result.providerResults && result.providerResults.length > 0 && (
+        <ul className="mt-2 space-y-1 text-xs text-leather-600" aria-label="Provider results">
+          {result.providerResults.map((providerResult) => (
+            <li key={providerResult.provider}>
+              {providerResult.provider}: {providerResult.status}
+              {providerResult.reason ? ` (${providerResult.reason})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {state.cancelled ? (
         <p className="mt-4 rounded-lg bg-parchment-100 p-3 text-sm text-leather-700" role="status">
@@ -150,7 +174,9 @@ export function CandidateReview({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="mb-2 inline-block rounded-full bg-parchment-100 px-2 py-0.5 text-xs font-semibold text-leather-600">
-                      Recognition candidate — not catalog identity
+                      {result.decision === 'strong-candidate' && index === 0
+                        ? 'Strong suggestion — confirmation required'
+                        : 'Recognition candidate — not catalog identity'}
                     </span>
                     <CandidateDetails candidate={candidate} index={index} />
                   </span>
@@ -159,7 +185,7 @@ export function CandidateReview({
             ))}
           </fieldset>
           <p className="mt-3 text-xs text-leather-500">
-            Confidence is informational; no score confirms a card or replaces your review.
+            Provider scores are uncalibrated and never confirm a card or replace your review.
           </p>
           <button
             type="button"

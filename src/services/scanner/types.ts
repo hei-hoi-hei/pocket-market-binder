@@ -1,7 +1,30 @@
 export interface ScannerEvidence {
   label: string;
   value: string;
+  /** Legacy provider score; not a calibrated probability. */
   confidence?: number;
+  provider?: string;
+  type?: string;
+  relation?: 'supports' | 'contradicts' | 'unavailable' | 'inconclusive';
+  strength?: ScannerEvidenceStrength;
+  metadata?: Record<string, string | number | boolean>;
+}
+
+export type ScannerEvidenceStrength =
+  | 'weak'
+  | 'partial'
+  | 'strong'
+  | 'exact'
+  | 'unavailable'
+  | 'contradictory';
+
+export type ScannerDecision = 'strong-candidate' | 'candidate-confirmation' | 'insufficient';
+
+export interface ScannerProviderObservation {
+  provider: string;
+  status: 'supporting' | 'missing' | 'unavailable' | 'error';
+  candidateCount: number;
+  reason?: string;
 }
 
 export interface ScannerCandidateRegion {
@@ -14,15 +37,27 @@ export interface ScannerCandidateRegion {
 export interface ScannerCandidate {
   /** Suggested canonical catalog ID, not a verified or accepted identity. */
   catalogId?: string;
+  /** Catalog namespace for catalogId; recognition provider IDs are never assumed global. */
+  catalogProvider?: string;
+  /** Generic game namespace used only when enough printing fields are present. */
+  gameKey?: string;
   name?: string;
   collectorNumber?: string;
   setCode?: string;
+  language?: string;
+  variant?: string;
+  /** Provider that generated this candidate; fused candidates retain all providers below. */
+  provider?: string;
+  providers?: string[];
+  /** Stable, source-scoped identity assigned by the fusion layer. */
+  identityKey?: string;
   /** Normalized [0, 1] rectangle relative to the original image. */
   region?: ScannerCandidateRegion;
-  /** A provider score normalized to the inclusive range 0..1. */
+  /** Legacy provider score normalized to 0..1; not a calibrated probability. */
   confidence?: number;
   evidence?: ScannerEvidence[];
   metadata?: Record<string, string | number | boolean>;
+  providerMetadata?: Record<string, Record<string, string | number | boolean>>;
 }
 
 declare const confirmedScannerCandidateBrand: unique symbol;
@@ -41,22 +76,30 @@ export type ScannerIdentificationResult =
       status: 'success';
       candidates: ScannerCandidate[];
       source?: string;
+      decision?: ScannerDecision;
+      providerResults?: ScannerProviderObservation[];
     }
   | {
       status: 'no-match';
       candidates: [];
       source?: string;
+      decision?: ScannerDecision;
+      providerResults?: ScannerProviderObservation[];
     }
   | {
       status: 'unavailable';
       reason: string;
       source?: string;
+      decision?: ScannerDecision;
+      providerResults?: ScannerProviderObservation[];
     }
   | {
       status: 'error';
       message: string;
       retryable?: boolean;
       source?: string;
+      decision?: ScannerDecision;
+      providerResults?: ScannerProviderObservation[];
     };
 
 export interface ScannerProvider {
