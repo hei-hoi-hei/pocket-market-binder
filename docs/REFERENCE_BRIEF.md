@@ -130,7 +130,7 @@ Binder / Wishlist / Cart
 
 Current implementation status:
 
-- **Capture:** Partially implemented through browser file input with `capture="environment"`; direct/native camera APIs are not present.
+- **Capture:** Browser file input remains available; Android uses Capacitor Camera for photo capture and gallery selection through the common Blob boundary. Capacitor App handles restored camera results after Android process recreation; only the result is kept transiently, not the prior source image. Mobile browser `capture="environment"` remains a picker hint. Android project is scaffolded, but no APK/device validation or iOS project exists.
 - **Image:** Partially implemented: image validation, temporary preview, replace/remove, and object-URL cleanup.
 - **Recognition boundary:** Implemented as a provider-neutral local-image service with runtime response normalization. An explicit `offline` provider is the final fallback; it requires no credentials, makes no network request, and returns `unavailable` when no offline recognition engine is configured.
 - **Identification:** Missing from production; the installed OCR dependency is used only by the isolated development benchmark.
@@ -717,8 +717,8 @@ This section distinguishes **design intent from actual implementation**.
 | Water/Fire/Grass theme direction | **Direction established; selector unverified** | Canonical starter/default themes; no selectable theme system confirmed in source. |
 | Additional curated themes | **Future extensibility** | Not required for initial theme direction. |
 | Unrestricted custom color editor | **Outside current scope** | Curated themes are preferred. |
-| Browser image acquisition | **Partially Implemented** | File input uses `accept="image/*"` and `capture="environment"`; browser/device behavior varies. |
-| Direct/native camera API | **Missing** | No `getUserMedia`, `MediaDevices`, `ImageCapture`, or native camera plugin flow. |
+| Browser image acquisition | **Implemented** | File input uses `accept="image/*"` and `capture="environment"`; mobile browser behavior varies. |
+| Native camera/photo acquisition | **Partially Implemented** | Capacitor Camera 8.2.4 capture/gallery adapter feeds the common Blob boundary in the generated Android project. It is not recognition, and device/APK validation remains outstanding. |
 | Recognition boundary | **Implemented** | Validates non-empty image MIME input and normalizes untrusted provider responses into clues, optional unverified catalog-ID suggestions, confidence, evidence, image regions, and metadata; no identity resolution or collection mutations. |
 | Offline recognition fallback | **Implemented** | Explicit `offline` provider requires no credentials/network and returns unavailable without fabricating results when no local engine is configured. |
 | Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production recognition engine is selected or registered. |
@@ -728,8 +728,8 @@ This section distinguishes **design intent from actual implementation**.
 | Scanner-to-collection action | **Missing** | Manual collection action exists; scanner results cannot mutate collection. |
 | Scanner failure/manual fallback | **Partially Implemented** | Provider-unavailable/error results fall through to the offline unavailable result; manual catalog search remains available. |
 | Sync | **Partial / optional / future-scope** | Infrastructure is incomplete and optional pending an explicit product decision. |
-| Capacitor configuration | **Present** | Configuration/dependencies do not constitute a native app. |
-| Android/iOS project or APK | **Missing** | No native project/build currently confirmed. |
+| Capacitor/Android project | **Partially Implemented** | Capacitor 8.5.2 Android project and Camera plugin are scaffolded; this is not an APK release or device validation. |
+| iOS project or APK | **Missing** | No iOS platform project exists. |
 
 ### Status maintenance
 

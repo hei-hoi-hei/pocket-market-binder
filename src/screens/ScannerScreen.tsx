@@ -7,6 +7,14 @@ import { useNav } from '@/context/NavContext';
 import { CandidateReview } from '@/components/scanner/CandidateReview';
 import { identifyImageWithProviders } from '@/services/scanner/scannerOrchestration';
 import { createLocalReferenceScannerProvider } from '@/services/scanner/localReferenceMatcher';
+import {
+  chooseNativePhotoFromGallery,
+  consumeRestoredCameraAcquisition,
+  isNativeCameraAvailable,
+  subscribeToRestoredCameraAcquisition,
+  takeNativePhoto,
+} from '@/services/scanner/capacitorCameraAcquisition';
+import type { ImageAcquisitionResult } from '@/services/scanner/imageAcquisition';
 import type {
   ConfirmedScannerCandidate,
   ScannerIdentificationResult,
@@ -21,21 +29,51 @@ export function ScannerScreen(props: ScannerScreenProps) {
   const { go } = useNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionController = useRef<AbortController | null>(null);
-  const { image, error, selectFile, clearImage, handlePreviewError } = useImageAcquisition();
+  const acquisitionRequest = useRef(0);
+  const { image, error, selectFile, acceptAcquisition, clearImage, handlePreviewError } = useImageAcquisition();
   const [reviewDismissed, setReviewDismissed] = useState(false);
   const [localResult, setLocalResult] = useState<ScannerIdentificationResult | null>(null);
   const [matching, setMatching] = useState(false);
+  const [acquiringImage, setAcquiringImage] = useState(false);
+  const nativeCameraAvailable = isNativeCameraAvailable();
   const reviewResult = props.reviewResult === undefined ? localResult : props.reviewResult;
 
   useEffect(() => {
     setReviewDismissed(false);
   }, [reviewResult]);
 
-  useEffect(() => () => recognitionController.current?.abort(), []);
+  useEffect(() => () => {
+    acquisitionRequest.current += 1;
+    recognitionController.current?.abort();
+  }, []);
 
-  const openFilePicker = () => inputRef.current?.click();
+  useEffect(() => {
+    const applyRestoredAcquisition = (result: ImageAcquisitionResult) => {
+      consumeRestoredCameraAcquisition();
+      if (result.status === 'cancelled') return;
+      if (result.status === 'success') {
+        acquisitionRequest.current += 1;
+        recognitionController.current?.abort();
+        setMatching(false);
+        setLocalResult(null);
+      }
+      acceptAcquisition(result);
+    };
+
+    const restored = consumeRestoredCameraAcquisition();
+    if (restored) applyRestoredAcquisition(restored);
+    return subscribeToRestoredCameraAcquisition(applyRestoredAcquisition);
+  }, [acceptAcquisition]);
+
+  const openFilePicker = () => {
+    acquisitionRequest.current += 1;
+    setAcquiringImage(false);
+    inputRef.current?.click();
+  };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    acquisitionRequest.current += 1;
+    setAcquiringImage(false);
     recognitionController.current?.abort();
     setLocalResult(null);
     setMatching(false);
@@ -44,10 +82,41 @@ export function ScannerScreen(props: ScannerScreenProps) {
   };
 
   const handleClearImage = () => {
+    acquisitionRequest.current += 1;
+    setAcquiringImage(false);
     recognitionController.current?.abort();
     setLocalResult(null);
     setMatching(false);
     clearImage();
+  };
+
+  const handleNativeAcquisition = async (
+    acquire: () => Promise<ImageAcquisitionResult>,
+  ) => {
+    const requestId = ++acquisitionRequest.current;
+    setAcquiringImage(true);
+    try {
+      const result = await acquire();
+      if (requestId === acquisitionRequest.current) {
+        if (result.status === 'success') {
+          recognitionController.current?.abort();
+          setMatching(false);
+          setLocalResult(null);
+        }
+        acceptAcquisition(result);
+      }
+    } catch (acquisitionError) {
+      if (requestId === acquisitionRequest.current) {
+        acceptAcquisition({
+          status: 'error',
+          message: acquisitionError instanceof Error && acquisitionError.message
+            ? acquisitionError.message
+            : 'The image could not be acquired. Please try again.',
+        });
+      }
+    } finally {
+      if (requestId === acquisitionRequest.current) setAcquiringImage(false);
+    }
   };
 
   const handleIdentify = async () => {
@@ -108,13 +177,36 @@ export function ScannerScreen(props: ScannerScreenProps) {
           <p className="text-sm text-leather-500 mb-5">
             Your browser may offer the camera, gallery, or a desktop file picker.
           </p>
-          <button
-            type="button"
-            onClick={openFilePicker}
-            className="bg-leather-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-leather-800 transition-colors active:scale-95"
-          >
-            <Camera className="w-4 h-4" /> Take Photo / Choose Picture
-          </button>
+          <div className="flex flex-wrap justify-center gap-2">
+            {nativeCameraAvailable && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleNativeAcquisition(takeNativePhoto)}
+                  disabled={acquiringImage}
+                  className="bg-leather-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-leather-800 disabled:opacity-60"
+                >
+                  <Camera className="w-4 h-4" /> {acquiringImage ? 'Opening Camera...' : 'Take Photo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleNativeAcquisition(chooseNativePhotoFromGallery)}
+                  disabled={acquiringImage}
+                  className="bg-parchment-200 text-leather-700 font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-parchment-300 disabled:opacity-60"
+                >
+                  <ImagePlus className="w-4 h-4" /> Choose from Gallery
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={openFilePicker}
+              className="bg-parchment-200 text-leather-700 font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-parchment-300 transition-colors active:scale-95"
+            >
+              <ImagePlus className="w-4 h-4" />
+              {nativeCameraAvailable ? 'Use File Picker' : 'Take Photo / Choose Picture'}
+            </button>
+          </div>
         </section>
       ) : (
         <section className="bg-white rounded-xl p-4 shadow-sm border border-parchment-200">
@@ -137,6 +229,26 @@ export function ScannerScreen(props: ScannerScreenProps) {
             >
               <RefreshCw className="w-4 h-4" /> Replace Picture
             </button>
+              {nativeCameraAvailable && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleNativeAcquisition(takeNativePhoto)}
+                    disabled={acquiringImage}
+                    className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 disabled:opacity-60"
+                  >
+                    <Camera className="w-4 h-4" /> {acquiringImage ? 'Opening Camera...' : 'Take New Photo'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleNativeAcquisition(chooseNativePhotoFromGallery)}
+                    disabled={acquiringImage}
+                    className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 disabled:opacity-60"
+                  >
+                    <ImagePlus className="w-4 h-4" /> Choose from Gallery
+                  </button>
+                </>
+              )}
             <button
               type="button"
               onClick={handleClearImage}

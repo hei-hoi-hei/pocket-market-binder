@@ -1,4 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  createImageAcquisitionResult,
+  isImageBlob,
+} from '@/services/scanner/imageAcquisition';
+import type { ImageAcquisitionResult } from '@/services/scanner/imageAcquisition';
+
+export { createImageAcquisitionResult } from '@/services/scanner/imageAcquisition';
+export type { ImageAcquisitionResult } from '@/services/scanner/imageAcquisition';
 
 export interface AcquiredImage {
   blob: Blob;
@@ -6,29 +14,13 @@ export interface AcquiredImage {
   previewUrl: string;
 }
 
-export type ImageAcquisitionResult =
-  | { status: 'success'; blob: Blob; fileName: string }
-  | { status: 'cancelled' }
-  | { status: 'error'; message: string };
-
 export interface ImageAcquisitionState {
   image: AcquiredImage | null;
   error: string | null;
 }
 
 export function isImageFile(file: Blob): boolean {
-  return file.size > 0 && file.type.trim().toLowerCase().startsWith('image/');
-}
-
-export function createImageAcquisitionResult(
-  blob: Blob | null,
-  fileName = 'Captured image',
-): ImageAcquisitionResult {
-  if (!blob) return { status: 'cancelled' };
-  if (!isImageFile(blob)) {
-    return { status: 'error', message: 'Please choose a non-empty image file.' };
-  }
-  return { status: 'success', blob, fileName: fileName.trim() || 'Captured image' };
+  return isImageBlob(file);
 }
 
 export function revokePreviewUrl(
@@ -87,7 +79,7 @@ export function useImageAcquisition(): ImageAcquisitionState & {
       return;
     }
 
-    if (!isImageFile(result.blob)) {
+    if (!isImageBlob(result.blob)) {
       setState((current) => ({
         ...current,
         error: 'Please choose a non-empty image file.',

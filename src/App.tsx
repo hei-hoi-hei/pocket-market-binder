@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavProvider, useNav } from '@/context/NavContext';
 import { CollectionProvider } from '@/context/CollectionContext';
 import { BottomNav } from '@/components/BottomNav';
@@ -11,6 +11,7 @@ import { CardDetailScreen } from '@/screens/CardDetailScreen';
 import { WishlistScreen } from '@/screens/WishlistScreen';
 import { CartScreen } from '@/screens/CartScreen';
 import { ScannerScreen } from '@/screens/ScannerScreen';
+import { subscribeToRestoredCameraAcquisition } from '@/services/scanner/capacitorCameraAcquisition';
 
 function ScreenRouter() {
   const { screen } = useNav();
@@ -29,6 +30,9 @@ function ScreenRouter() {
 
 function AppShell() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { go } = useNav();
+
+  useEffect(() => subscribeToRestoredCameraAcquisition(() => go('scanner')), [go]);
 
   return (
     <div className="min-h-screen binder-bg flex flex-col">

@@ -4,11 +4,18 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isConfirmedScannerCandidate } from '@/services/scanner/types';
+import type { ImageAcquisitionResult } from '@/services/scanner/imageAcquisition';
 import { ScannerScreen } from '../ScannerScreen';
 
 const scannerMocks = vi.hoisted(() => ({
   identify: vi.fn(),
   go: vi.fn(),
+  nativeCameraAvailable: vi.fn(() => false),
+  takeNativePhoto: vi.fn(),
+  chooseNativePhotoFromGallery: vi.fn(),
+  acceptAcquisition: vi.fn(),
+  consumeRestoredCameraAcquisition: vi.fn<[], ImageAcquisitionResult | null>(() => null),
+  restoredListeners: [] as Array<(result: ImageAcquisitionResult) => void>,
   provider: { name: 'local-reference' },
 }));
 
@@ -20,25 +27,54 @@ vi.mock('@/services/scanner/localReferenceMatcher', () => ({
   createLocalReferenceScannerProvider: () => scannerMocks.provider,
 }));
 
+vi.mock('@/services/scanner/capacitorCameraAcquisition', () => ({
+  isNativeCameraAvailable: scannerMocks.nativeCameraAvailable,
+  takeNativePhoto: scannerMocks.takeNativePhoto,
+  chooseNativePhotoFromGallery: scannerMocks.chooseNativePhotoFromGallery,
+  consumeRestoredCameraAcquisition: scannerMocks.consumeRestoredCameraAcquisition,
+  subscribeToRestoredCameraAcquisition: (listener: (result: ImageAcquisitionResult) => void) => {
+    scannerMocks.restoredListeners.push(listener);
+    return () => {
+      scannerMocks.restoredListeners = scannerMocks.restoredListeners
+        .filter((current) => current !== listener);
+    };
+  },
+}));
+
 vi.mock('@/hooks/useImageAcquisition', async () => {
   const { useState } = await import('react');
   return {
     useImageAcquisition: () => {
       const [image, setImage] = useState<{ blob: Blob; fileName: string; previewUrl: string } | null>(null);
+      const [error, setError] = useState<string | null>(null);
+      const acceptAcquisition = (result: {
+        status: 'success'; blob: Blob; fileName: string;
+      } | { status: 'cancelled' } | { status: 'error'; message: string }) => {
+        scannerMocks.acceptAcquisition(result);
+        if (result.status === 'success') {
+          setImage({
+            blob: result.blob,
+            fileName: result.fileName,
+            previewUrl: 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+          });
+          setError(null);
+        } else if (result.status === 'error') {
+          setError(result.message);
+        } else {
+          setError(null);
+        }
+      };
       return {
         image,
-        error: null,
+        error,
+        acceptAcquisition,
         selectFile: (file: File | null) => {
           if (file) {
-            setImage({
-              blob: file,
-              fileName: file.name,
-              previewUrl: 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
-            });
+            acceptAcquisition({ status: 'success', blob: file, fileName: file.name });
           }
         },
-        clearImage: () => setImage(null),
-        handlePreviewError: () => undefined,
+        clearImage: () => { setImage(null); setError(null); },
+        handlePreviewError: () => { setImage(null); setError('Preview failed'); },
       };
     },
   };
@@ -64,18 +100,25 @@ const matchResult = {
 describe('ScannerScreen interactions', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let rootMounted: boolean;
 
   beforeEach(() => {
     scannerMocks.identify.mockReset().mockResolvedValue(matchResult);
     scannerMocks.go.mockReset();
+    scannerMocks.nativeCameraAvailable.mockReset().mockReturnValue(false);
+    scannerMocks.takeNativePhoto.mockReset();
+    scannerMocks.chooseNativePhotoFromGallery.mockReset();
+    scannerMocks.consumeRestoredCameraAcquisition.mockReset().mockReturnValue(null);
+    scannerMocks.restoredListeners.length = 0;
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
+    rootMounted = true;
   });
 
   afterEach(async () => {
-    await act(async () => root.unmount());
+    if (rootMounted) await act(async () => root.unmount());
     container.remove();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -260,5 +303,170 @@ describe('ScannerScreen interactions', () => {
     expect(onCandidateConfirmed).not.toHaveBeenCalled();
     expect(scannerMocks.identify.mock.calls[0][1]).toBe(imageA);
     expect(scannerMocks.identify.mock.calls[1][1]).toBe(imageB);
+  });
+
+  it('sends a native camera Blob through the existing match and explicit confirmation flow', async () => {
+    const photo = new Blob(['native photo'], { type: 'image/jpeg' });
+    scannerMocks.nativeCameraAvailable.mockReturnValue(true);
+    scannerMocks.takeNativePhoto.mockResolvedValue({
+      status: 'success',
+      blob: photo,
+      fileName: 'camera-photo.jpg',
+    });
+    const onCandidateConfirmed = await renderScreen();
+
+    const takePhotoButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Take Photo'));
+    if (!takePhotoButton) throw new Error('Native Take Photo action was not rendered.');
+    await act(async () => {
+      takePhotoButton.click();
+      await Promise.resolve();
+    });
+
+    expect(scannerMocks.takeNativePhoto).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('Selected: camera-photo.jpg');
+    expect(scannerMocks.identify).not.toHaveBeenCalled();
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+
+    const matchButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    if (!matchButton) throw new Error('Local matching action was not rendered for the native photo.');
+    await act(async () => {
+      matchButton.click();
+      await Promise.resolve();
+    });
+
+    expect(scannerMocks.identify).toHaveBeenCalledWith(
+      [scannerMocks.provider],
+      photo,
+      expect.any(AbortSignal),
+    );
+    expect(container.textContent).toContain('Candidate Review');
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('applies a restored native result through the existing Blob acquisition boundary', async () => {
+    const photo = new Blob(['restored native photo'], { type: 'image/jpeg' });
+    await renderScreen();
+    const restoredListener = scannerMocks.restoredListeners[0];
+    if (!restoredListener) throw new Error('Restored camera listener was not registered.');
+
+    await act(async () => restoredListener({
+      status: 'success',
+      blob: photo,
+      fileName: 'camera-photo.jpg',
+    }));
+
+    expect(container.textContent).toContain('Selected: camera-photo.jpg');
+    expect(scannerMocks.identify).not.toHaveBeenCalled();
+
+    const matchButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    if (!matchButton) throw new Error('Local matching action was not rendered for the restored photo.');
+    await act(async () => {
+      matchButton.click();
+      await Promise.resolve();
+    });
+    expect(scannerMocks.identify).toHaveBeenCalledWith(
+      [scannerMocks.provider],
+      photo,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('keeps the current preview and review when native replacement is cancelled or fails', async () => {
+    scannerMocks.nativeCameraAvailable.mockReturnValue(true);
+    const onCandidateConfirmed = await renderScreen();
+    await provideImage('current-card.png');
+
+    const matchButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    if (!matchButton) throw new Error('Local matching action was not rendered.');
+    await act(async () => {
+      matchButton.click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain('Candidate Review');
+
+    const takeNewPhoto = () => [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Take New Photo'));
+    scannerMocks.takeNativePhoto.mockResolvedValueOnce({ status: 'cancelled' });
+    const cancelButton = takeNewPhoto();
+    if (!cancelButton) throw new Error('Native replacement action was not rendered.');
+    await act(async () => {
+      cancelButton.click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain('Selected: current-card.png');
+    expect(container.textContent).toContain('Candidate Review');
+
+    scannerMocks.takeNativePhoto.mockResolvedValueOnce({
+      status: 'error',
+      message: 'Camera permission was denied.',
+    });
+    const retryButton = takeNewPhoto();
+    if (!retryButton) throw new Error('Native replacement action was not rendered after cancellation.');
+    await act(async () => {
+      retryButton.click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain('Selected: current-card.png');
+    expect(container.textContent).toContain('Candidate Review');
+    expect(container.textContent).toContain('Camera permission was denied.');
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('ignores pending native acquisitions after clear and unmount', async () => {
+    let resolveAfterClear!: (result: ImageAcquisitionResult) => void;
+    let resolveAfterUnmount!: (result: ImageAcquisitionResult) => void;
+    scannerMocks.nativeCameraAvailable.mockReturnValue(true);
+    scannerMocks.takeNativePhoto
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveAfterClear = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveAfterUnmount = resolve; }));
+    await renderScreen();
+    await provideImage('existing.png');
+    scannerMocks.acceptAcquisition.mockClear();
+
+    const takeNewPhoto = () => [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Take New Photo'));
+    const takeBeforeClear = takeNewPhoto();
+    if (!takeBeforeClear) throw new Error('Native replacement action was not rendered.');
+    await act(async () => {
+      takeBeforeClear.click();
+      await Promise.resolve();
+    });
+    const removeButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Remove Picture'));
+    if (!removeButton) throw new Error('Remove picture action was not rendered.');
+    await act(async () => removeButton.click());
+    await act(async () => {
+      resolveAfterClear({
+        status: 'success',
+        blob: new Blob(['late after clear'], { type: 'image/jpeg' }),
+        fileName: 'late-after-clear.jpg',
+      });
+      await Promise.resolve();
+    });
+    expect(container.textContent).not.toContain('Selected: late-after-clear.jpg');
+    expect(scannerMocks.acceptAcquisition).not.toHaveBeenCalled();
+
+    const takeBeforeUnmount = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Take Photo'));
+    if (!takeBeforeUnmount) throw new Error('Native capture action was not rendered after clear.');
+    await act(async () => {
+      takeBeforeUnmount.click();
+      await Promise.resolve();
+    });
+    await act(async () => root.unmount());
+    rootMounted = false;
+    await act(async () => {
+      resolveAfterUnmount({
+        status: 'success',
+        blob: new Blob(['late after unmount'], { type: 'image/jpeg' }),
+        fileName: 'late-after-unmount.jpg',
+      });
+      await Promise.resolve();
+    });
+    expect(scannerMocks.acceptAcquisition).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pocket Market Binder</string>
+    <string name="title_activity_main">Pocket Market Binder</string>
+    <string name="package_name">com.pocketmarket.binder</string>
+    <string name="custom_url_scheme">com.pocketmarket.binder</string>
+</resources>

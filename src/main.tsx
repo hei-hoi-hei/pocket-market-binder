@@ -6,6 +6,9 @@ import './pwa'; // Import PWA registration
 import { v1ToV2Migrator } from './services/sync/migration/v1ToV2Migrator';
 import { SyncEngine } from './services/sync/engine/syncEngine';
 import { SupabaseSyncProvider } from './services/sync/providers/supabase/supabaseProvider';
+import { registerNativeCameraRestoration } from './services/scanner/capacitorCameraAcquisition';
+
+void registerNativeCameraRestoration();
 
 // App Boot Initialization
 async function initializeApp() {
