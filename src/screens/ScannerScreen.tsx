@@ -59,7 +59,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
     setLocalResult(null);
     try {
       const provider = createLocalReferenceScannerProvider();
-      const result = await identifyImageWithProviders([provider], image.file, controller.signal);
+      const result = await identifyImageWithProviders([provider], image.blob, controller.signal);
       if (!controller.signal.aborted) setLocalResult(result);
     } finally {
       if (!controller.signal.aborted) setMatching(false);
@@ -126,8 +126,8 @@ export function ScannerScreen(props: ScannerScreenProps) {
               onError={handlePreviewError}
             />
           </div>
-          <p className="text-xs text-leather-500 mt-3 truncate" title={image.file.name}>
-            Selected: {image.file.name}
+          <p className="text-xs text-leather-500 mt-3 truncate" title={image.fileName}>
+            Selected: {image.fileName}
           </p>
           <div className="flex flex-wrap gap-2 mt-4">
             <button

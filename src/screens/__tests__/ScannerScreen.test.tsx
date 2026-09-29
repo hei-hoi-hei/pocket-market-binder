@@ -24,14 +24,15 @@ vi.mock('@/hooks/useImageAcquisition', async () => {
   const { useState } = await import('react');
   return {
     useImageAcquisition: () => {
-      const [image, setImage] = useState<{ file: File; previewUrl: string } | null>(null);
+      const [image, setImage] = useState<{ blob: Blob; fileName: string; previewUrl: string } | null>(null);
       return {
         image,
         error: null,
         selectFile: (file: File | null) => {
           if (file) {
             setImage({
-              file,
+              blob: file,
+              fileName: file.name,
               previewUrl: 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
             });
           }
@@ -87,10 +88,12 @@ describe('ScannerScreen interactions', () => {
     return onCandidateConfirmed;
   }
 
-  async function provideImage() {
-    const file = new File(['local image bytes'], 'card.png', { type: 'image/png' });
+  async function provideImage(fileName = 'card.png') {
+    const file = new File(['local image bytes'], fileName, { type: 'image/png' });
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     if (!input) throw new Error('Scanner image input was not rendered.');
+    expect(input.accept).toBe('image/*');
+    expect(input.getAttribute('capture')).toBe('environment');
     Object.defineProperty(input, 'files', { configurable: true, value: [file] });
     await act(async () => {
       input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -206,5 +209,56 @@ describe('ScannerScreen interactions', () => {
     });
     expect(container.textContent).not.toContain('Candidate Review');
     expect(onCandidateConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('ignores image A recognition after replacing it with image B', async () => {
+    let resolveImageA!: (result: typeof matchResult) => void;
+    let resolveImageB!: (result: typeof matchResult) => void;
+    scannerMocks.identify
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveImageA = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveImageB = resolve; }));
+    const onCandidateConfirmed = await renderScreen();
+    const imageA = await provideImage('image-a.png');
+
+    const findMatchButton = () => [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    const matchImageA = findMatchButton();
+    if (!matchImageA) throw new Error('Local matching action was not rendered for image A.');
+    await act(async () => {
+      matchImageA.click();
+      await Promise.resolve();
+    });
+    const signalA = scannerMocks.identify.mock.calls[0][2];
+
+    const imageB = await provideImage('image-b.png');
+    expect(signalA.aborted).toBe(true);
+    expect(container.textContent).toContain('Selected: image-b.png');
+
+    const matchImageB = findMatchButton();
+    if (!matchImageB) throw new Error('Local matching action was not rendered for image B.');
+    await act(async () => {
+      matchImageB.click();
+      await Promise.resolve();
+    });
+    const signalB = scannerMocks.identify.mock.calls[1][2];
+    expect(signalB.aborted).toBe(false);
+
+    await act(async () => {
+      resolveImageA({ status: 'success', candidates: [{ ...candidate, name: 'Late image A' }] });
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain('Selected: image-b.png');
+    expect(container.textContent).not.toContain('Late image A');
+    expect(container.textContent).toContain('Matching Local References...');
+
+    await act(async () => {
+      resolveImageB({ status: 'success', candidates: [{ ...candidate, name: 'Image B result' }] });
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain('Selected: image-b.png');
+    expect(container.textContent).toContain('Image B result');
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+    expect(scannerMocks.identify.mock.calls[0][1]).toBe(imageA);
+    expect(scannerMocks.identify.mock.calls[1][1]).toBe(imageB);
   });
 });

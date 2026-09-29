@@ -1,17 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface AcquiredImage {
-  file: File;
+  blob: Blob;
+  fileName: string;
   previewUrl: string;
 }
+
+export type ImageAcquisitionResult =
+  | { status: 'success'; blob: Blob; fileName: string }
+  | { status: 'cancelled' }
+  | { status: 'error'; message: string };
 
 export interface ImageAcquisitionState {
   image: AcquiredImage | null;
   error: string | null;
 }
 
-export function isImageFile(file: File): boolean {
-  return file.type.startsWith('image/');
+export function isImageFile(file: Blob): boolean {
+  return file.size > 0 && file.type.trim().toLowerCase().startsWith('image/');
+}
+
+export function createImageAcquisitionResult(
+  blob: Blob | null,
+  fileName = 'Captured image',
+): ImageAcquisitionResult {
+  if (!blob) return { status: 'cancelled' };
+  if (!isImageFile(blob)) {
+    return { status: 'error', message: 'Please choose a non-empty image file.' };
+  }
+  return { status: 'success', blob, fileName: fileName.trim() || 'Captured image' };
 }
 
 export function revokePreviewUrl(
@@ -24,8 +41,8 @@ export function revokePreviewUrl(
 
 export function replacePreviewUrl(
   currentUrl: string | null,
-  file: File,
-  createUrl: (file: File) => string = URL.createObjectURL,
+  file: Blob,
+  createUrl: (file: Blob) => string = URL.createObjectURL,
   revokeUrl: (url: string) => void = URL.revokeObjectURL,
 ): string {
   const nextUrl = createUrl(file);
@@ -34,6 +51,7 @@ export function replacePreviewUrl(
 }
 
 export function useImageAcquisition(): ImageAcquisitionState & {
+  acceptAcquisition: (result: ImageAcquisitionResult) => void;
   selectFile: (file: File | null) => void;
   clearImage: () => void;
   handlePreviewError: () => void;
@@ -55,23 +73,41 @@ export function useImageAcquisition(): ImageAcquisitionState & {
     setState({ image: null, error: 'This image could not be displayed. Please choose another picture.' });
   }, [revokePreview]);
 
-  const selectFile = useCallback((file: File | null) => {
-    if (!file) return;
+  const acceptAcquisition = useCallback((result: ImageAcquisitionResult) => {
+    if (result.status === 'cancelled') {
+      setState((current) => ({ ...current, error: null }));
+      return;
+    }
 
-    if (!isImageFile(file)) {
+    if (result.status === 'error') {
       setState((current) => ({
         ...current,
-        error: 'Please choose an image file.',
+        error: result.message,
       }));
       return;
     }
 
-    const previewUrl = replacePreviewUrl(previewUrlRef.current, file);
+    if (!isImageFile(result.blob)) {
+      setState((current) => ({
+        ...current,
+        error: 'Please choose a non-empty image file.',
+      }));
+      return;
+    }
+
+    const previewUrl = replacePreviewUrl(previewUrlRef.current, result.blob);
     previewUrlRef.current = previewUrl;
-    setState({ image: { file, previewUrl }, error: null });
+    setState({
+      image: { blob: result.blob, fileName: result.fileName.trim() || 'Captured image', previewUrl },
+      error: null,
+    });
   }, []);
+
+  const selectFile = useCallback((file: File | null) => {
+    acceptAcquisition(createImageAcquisitionResult(file, file?.name));
+  }, [acceptAcquisition]);
 
   useEffect(() => revokePreview, [revokePreview]);
 
-  return { ...state, selectFile, clearImage, handlePreviewError };
+  return { ...state, acceptAcquisition, selectFile, clearImage, handlePreviewError };
 }

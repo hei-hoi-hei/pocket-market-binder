@@ -48,7 +48,12 @@ async function readImagePixels(image: Blob): Promise<GrayscalePixels> {
   if (!context) throw new Error('This browser cannot process local images for matching.');
 
   if (typeof createImageBitmap === 'function') {
-    const bitmap = await createImageBitmap(image);
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(image);
+    } catch {
+      throw new Error('The selected image could not be decoded for local matching.');
+    }
     try {
       if (bitmap.width <= 0 || bitmap.height <= 0) {
         throw new Error('The selected image has invalid dimensions.');

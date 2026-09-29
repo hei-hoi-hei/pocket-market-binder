@@ -67,12 +67,15 @@ describe('local reference descriptor-to-match integration', () => {
       getContext: vi.fn(() => context),
     };
     const bitmap = { width: 640, height: 800, close: vi.fn() };
+    const createBitmap = vi.fn(async () => bitmap);
     vi.stubGlobal('document', { createElement: vi.fn(() => canvas) });
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => bitmap));
+    vi.stubGlobal('createImageBitmap', createBitmap);
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const image = new Blob(['local image bytes'], { type: 'image/png' });
     const descriptor = await createPerceptualHashDescriptor(image);
+    expect(createBitmap).toHaveBeenCalledWith(image);
+    expect(context.drawImage).toHaveBeenCalledWith(bitmap, 0, 0, 32, 32);
     expect(descriptor).toMatchObject({
       representation: 'compact-descriptor',
       kind: 'perceptual-hash',
@@ -115,4 +118,19 @@ describe('local reference descriptor-to-match integration', () => {
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('normalizes undecodable image errors', async () => {
+    const context = { drawImage: vi.fn(), getImageData: vi.fn() };
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => ({ width: 0, height: 0, getContext: () => context })),
+    });
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => {
+      throw new Error('decoder-specific failure');
+    }));
+
+    await expect(createPerceptualHashDescriptor(
+      new Blob(['unsupported bytes'], { type: 'image/heic' }),
+    )).rejects.toThrow('The selected image could not be decoded for local matching.');
+  });
+
 });
