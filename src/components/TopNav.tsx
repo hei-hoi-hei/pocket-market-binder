@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Home, BookOpen, Search, Heart, ShoppingCart, Sparkles, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { Settings as SettingsIcon } from 'lucide-react';
-import { SettingsModal } from './SettingsModal';
 
 import type { ScreenId } from '@/types';
 import { useNav } from '@/context/NavContext';
 import { useCollection } from '@/context/CollectionContext';
 import { SupabaseSyncProvider } from '@/services/sync/providers/supabase/supabaseProvider';
 import { ProviderStatus } from '@/services/sync/types/sync.types';
+
+interface TopNavProps {
+  onOpenSettings: () => void;
+}
 
 const ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
   { id: 'home', label: 'Home', icon: Home },
@@ -17,9 +20,8 @@ const ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
   { id: 'cart', label: 'Cart', icon: ShoppingCart },
 ];
 
-export function TopNav() {
+export function TopNav({ onOpenSettings }: TopNavProps) {
   const { screen, go } = useNav();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const { wishlist, cart } = useCollection();
   const [syncStatus, setSyncStatus] = useState<ProviderStatus>('OFFLINE');
@@ -139,9 +141,10 @@ export function TopNav() {
         <div className="flex items-center gap-3">
           {renderSyncIndicator()}
           <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-parchment-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+            onClick={onOpenSettings}
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-parchment-300 transition-colors hover:bg-white/10 hover:text-white"
             title="Settings & Backup"
+            aria-label="Open settings"
           >
             <SettingsIcon className="w-5 h-5" />
           </button>
@@ -150,8 +153,6 @@ export function TopNav() {
       {/* Gold accent line */}
       <div className="h-0.5 bg-gradient-to-r from-transparent via-gold-500/50 to-transparent" />
     </header>
-    <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </>
   );
 }
-

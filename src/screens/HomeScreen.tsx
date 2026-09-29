@@ -40,22 +40,22 @@ export function HomeScreen() {
           </div>
           <h2 className="font-display text-3xl leading-tight mb-1">Your Card Collection</h2>
           <p className="text-sm text-parchment-200 mb-4">Browse, collect, and track your TCG cards in a digital binder.</p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
             <button
               onClick={() => go('search')}
-              className="bg-gold-400 text-leather-800 font-bold text-sm px-4 py-2 rounded-lg flex items-center gap-1.5 hover:bg-gold-500 transition-colors active:scale-95"
+              className="flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gold-400 px-4 py-2 text-sm font-bold text-leather-800 transition-colors hover:bg-gold-500 active:scale-95"
             >
               <Search className="w-4 h-4" /> Browse Cards
             </button>
             <button
               onClick={() => go('binder')}
-              className="bg-leather-800/40 border border-parchment-300/30 text-white font-bold text-sm px-4 py-2 rounded-lg flex items-center gap-1.5 hover:bg-leather-800/60 transition-colors active:scale-95"
+              className="flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-parchment-300/30 bg-leather-800/40 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-leather-800/60 active:scale-95"
             >
               <BookOpen className="w-4 h-4" /> My Binder
             </button>
             <button
               onClick={() => go('scanner')}
-              className="bg-white/10 border border-parchment-300/30 text-white font-bold text-sm px-4 py-2 rounded-lg flex items-center gap-1.5 hover:bg-white/20 transition-colors active:scale-95"
+              className="flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-parchment-300/30 bg-white/10 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-white/20 active:scale-95"
             >
               <Camera className="w-4 h-4" /> Scan Card
             </button>

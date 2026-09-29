@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { X, Download, Upload, Database, DollarSign, Settings as SettingsIcon } from 'lucide-react';
 import { exportUserData, importUserData } from '@/services/dataPortabilityService';
 import { getBinder, getWishlist, getCart } from '@/services/collectionService';
+import {
+  CURRENCY_OPTIONS,
+  readCurrencyPreference,
+  writeCurrencyPreference,
+  type CurrencyPreference,
+} from '@/services/currencyPreference';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,7 +15,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [currency, setCurrency] = useState<string>('USD');
+  const [currency, setCurrency] = useState<CurrencyPreference>('USD');
   const [stats, setStats] = useState({ binderCount: 0, wishlistCount: 0, cartCount: 0 });
   const [importMode, setImportMode] = useState<'merge' | 'overwrite'>('merge');
   const [message, setMessage] = useState<string | null>(null);
@@ -19,8 +25,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       Promise.all([getBinder(), getWishlist(), getCart()]).then(([b, w, c]) => {
         setStats({ binderCount: b.length, wishlistCount: w.length, cartCount: c.length });
       });
-      const savedCurrency = localStorage.getItem('pmb:currency') || 'USD';
-      setCurrency(savedCurrency);
+      setCurrency(readCurrencyPreference());
     }
   }, [isOpen]);
   useEffect(() => {
@@ -45,7 +50,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       a.click();
       URL.revokeObjectURL(url);
       setMessage('Export completed successfully.');
-    } catch (e) {
+    } catch {
       setMessage('Export failed.');
     }
   };
@@ -62,48 +67,54 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setMessage('Import completed successfully.');
         const [b, w, c] = await Promise.all([getBinder(), getWishlist(), getCart()]);
         setStats({ binderCount: b.length, wishlistCount: w.length, cartCount: c.length });
-      } catch (err: any) {
-        setMessage(`Import failed: ${err.message}`);
+      } catch (error: unknown) {
+        setMessage(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     };
     reader.readAsText(file);
   };
 
-  const handleCurrencyChange = (newCurr: string) => {
-    setCurrency(newCurr);
-    localStorage.setItem('pmb:currency', newCurr);
+  const handleCurrencyChange = (newCurrency: CurrencyPreference) => {
+    try {
+      writeCurrencyPreference(newCurrency);
+      setCurrency(newCurrency);
+      setMessage(null);
+    } catch {
+      setMessage('Could not save currency preference. Check browser storage availability and try again.');
+    }
   };
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div 
-        className="bg-leather-800 border border-leather-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-parchment-200"
+        className="flex w-full min-w-0 max-w-md max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-2xl border border-leather-600 bg-leather-800 text-parchment-200 shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-leather-700 bg-leather-900/50">
-          <div className="flex items-center gap-2">
-            <SettingsIcon className="w-5 h-5 text-gold-400" />
-            <h2 className="font-display text-lg text-white">Settings & Data Portability</h2>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-leather-700 bg-leather-900/50 px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <SettingsIcon className="h-5 w-5 shrink-0 text-gold-400" />
+            <h2 className="min-w-0 break-words font-display text-base leading-tight text-white sm:text-lg">Settings & Data Portability</h2>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg text-parchment-400 hover:text-white">
+          <button type="button" aria-label="Close settings" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-parchment-400 hover:bg-white/10 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
+          <div className="space-y-6">
           {message && (
-            <div className="p-3 rounded-lg bg-leather-900 border border-gold-500/30 text-gold-300 text-sm">
+            <div role="status" className="break-words rounded-lg border border-gold-500/30 bg-leather-900 p-3 text-sm text-gold-300">
               {message}
             </div>
           )}
 
           {/* Storage Stats */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gold-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Database className="w-4 h-4" /> Local Storage Usage
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gold-400">
+              <Database className="h-4 w-4 shrink-0" /> Local Storage Usage
             </label>
             <div className="grid grid-cols-3 gap-2 bg-leather-900 p-3 rounded-xl border border-leather-700 text-center text-xs">
               <div>
@@ -122,16 +133,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
           {/* Currency Selection */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gold-400 uppercase tracking-wider flex items-center gap-1.5">
-              <DollarSign className="w-4 h-4" /> Currency Preference
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gold-400">
+              <DollarSign className="h-4 w-4 shrink-0" /> Currency Preference
             </label>
             <div className="grid grid-cols-4 gap-2">
-              {['USD', 'EUR', 'PHP', 'JPY'].map((curr) => (
+              {CURRENCY_OPTIONS.map((curr) => (
                 <button
                   key={curr}
                   type="button"
                   onClick={() => handleCurrencyChange(curr)}
-                  className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                  className={`min-h-11 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-bold transition-all ${
                     currency === curr 
                       ? 'bg-gold-500 text-leather-900 border-gold-400' 
                       : 'bg-leather-900 text-parchment-300 border-leather-700 hover:bg-leather-700'
@@ -141,16 +152,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </button>
               ))}
             </div>
+            <p className="text-xs leading-relaxed text-parchment-400">
+              Your preference is saved. Displayed prices currently remain in USD.
+            </p>
           </div>
 
           {/* Export */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gold-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Download className="w-4 h-4" /> Export Backup
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gold-400">
+              <Download className="h-4 w-4 shrink-0" /> Export Backup
             </label>
             <button
               onClick={handleExport}
-              className="w-full py-2.5 px-4 bg-leather-900 hover:bg-leather-700 border border-leather-600 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-colors"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-leather-600 bg-leather-900 px-4 py-2.5 text-center text-sm font-bold leading-snug text-white transition-colors hover:bg-leather-700"
             >
               <Download className="w-4 h-4 text-gold-400" /> Download Collection JSON
             </button>
@@ -158,34 +172,34 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {/* Import */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gold-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Upload className="w-4 h-4" /> Import Backup
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gold-400">
+              <Upload className="h-4 w-4 shrink-0" /> Import Backup
             </label>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="text-xs text-parchment-400">Mode:</span>
               <button
                 type="button"
                 onClick={() => setImportMode('merge')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border ${importMode === 'merge' ? 'bg-gold-500 text-leather-900 border-gold-400' : 'bg-leather-900 text-parchment-400 border-leather-700'}`}
+                className={`min-h-11 whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold ${importMode === 'merge' ? 'bg-gold-500 text-leather-900 border-gold-400' : 'bg-leather-900 text-parchment-400 border-leather-700'}`}
               >
                 Merge
               </button>
               <button
                 type="button"
                 onClick={() => setImportMode('overwrite')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border ${importMode === 'overwrite' ? 'bg-fire-500 text-white border-fire-400' : 'bg-leather-900 text-parchment-400 border-leather-700'}`}
+                className={`min-h-11 whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold ${importMode === 'overwrite' ? 'bg-fire-500 text-white border-fire-400' : 'bg-leather-900 text-parchment-400 border-leather-700'}`}
               >
                 Overwrite
               </button>
             </div>
-            <label className="w-full py-2.5 px-4 bg-leather-900 hover:bg-leather-700 border border-leather-600 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-colors cursor-pointer">
-              <Upload className="w-4 h-4 text-gold-400" /> Select JSON File to Import
+            <label className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-leather-600 bg-leather-900 px-4 py-2.5 text-center text-sm font-bold leading-snug text-white transition-colors hover:bg-leather-700">
+              <Upload className="h-4 w-4 shrink-0 text-gold-400" /> <span className="break-words">Select JSON File to Import</span>
               <input type="file" accept=".json" onChange={handleImportFile} className="hidden" />
             </label>
+          </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-

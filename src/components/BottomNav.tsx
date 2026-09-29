@@ -1,4 +1,4 @@
-import { Home, BookOpen, Search, Heart, ShoppingCart } from 'lucide-react';
+import { Home, BookOpen, Search, Heart, ShoppingCart, Settings as SettingsIcon } from 'lucide-react';
 import type { ScreenId } from '@/types';
 import { useNav } from '@/context/NavContext';
 import { useCollection } from '@/context/CollectionContext';
@@ -11,7 +11,11 @@ const ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
   { id: 'cart', label: 'Cart', icon: ShoppingCart },
 ];
 
-export function BottomNav() {
+interface BottomNavProps {
+  onOpenSettings: () => void;
+}
+
+export function BottomNav({ onOpenSettings }: BottomNavProps) {
   const { screen, go } = useNav();
   const { wishlist, cart } = useCollection();
 
@@ -23,7 +27,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-leather-800/95 backdrop-blur-md border-t border-leather-600 safe-bottom lg:hidden">
-      <div className="mx-auto max-w-md md:max-w-3xl lg:max-w-5xl flex items-stretch justify-around px-2">
+      <div className="mx-auto flex max-w-md items-stretch justify-around px-1 sm:px-2 md:max-w-3xl lg:max-w-5xl">
         {ITEMS.map(({ id, label, icon: Icon }) => {
           const active = screen === id;
           const badge = badgeFor(id);
@@ -32,7 +36,7 @@ export function BottomNav() {
               key={id}
               type="button"
               onClick={() => go(id)}
-              className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2.5 transition-colors ${
+              className={`relative flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
                 active ? 'text-gold-400' : 'text-parchment-300 hover:text-parchment-100'
               }`}
               aria-label={label}
@@ -51,6 +55,15 @@ export function BottomNav() {
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-parchment-300 transition-colors hover:text-parchment-100"
+          aria-label="Settings"
+        >
+          <SettingsIcon className="h-5 w-5" />
+          <span className="whitespace-nowrap text-[10px] font-semibold">Settings</span>
+        </button>
       </div>
     </nav>
   );
