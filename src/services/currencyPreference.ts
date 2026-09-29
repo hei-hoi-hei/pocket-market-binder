@@ -1,5 +1,8 @@
-export const CURRENCY_OPTIONS = ['USD', 'EUR', 'PHP', 'JPY'] as const;
-export type CurrencyPreference = typeof CURRENCY_OPTIONS[number];
+import { SUPPORTED_CURRENCIES, type CurrencyCode } from './currencyService';
+
+export const CURRENCY_OPTIONS = SUPPORTED_CURRENCIES;
+export type CurrencyPreference = CurrencyCode;
+export const CURRENCY_PREFERENCE_CHANGE_EVENT = 'pmb:currency-preference-change';
 
 const CURRENCY_STORAGE_KEY = 'pmb:currency';
 const DEFAULT_CURRENCY: CurrencyPreference = 'USD';
@@ -27,4 +30,7 @@ export function writeCurrencyPreference(
     throw new Error('Unsupported currency preference.');
   }
   (storage ?? window.localStorage).setItem(CURRENCY_STORAGE_KEY, currency);
+  if (!storage && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(CURRENCY_PREFERENCE_CHANGE_EVENT));
+  }
 }

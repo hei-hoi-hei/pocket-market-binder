@@ -1,7 +1,8 @@
 import type { Card, Rarity } from '@/types';
+import type { CurrencyCode } from '@/services/currencyService';
 
-export function formatPrice(value: number): string {
-  return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+export function formatPrice(value: number, currency: CurrencyCode = 'USD'): string {
+  return value.toLocaleString('en-US', { style: 'currency', currency });
 }
 
 export function rarityLabel(r: Rarity): string {
@@ -72,4 +73,3 @@ export function seedGradient(seedOrId: number | string): [string, string] {
     `hsl(${h2}, 70%, 48%)`,
   ];
 }
-

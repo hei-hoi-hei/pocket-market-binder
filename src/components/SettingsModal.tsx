@@ -153,7 +153,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               ))}
             </div>
             <p className="text-xs leading-relaxed text-parchment-400">
-              Your preference is saved. Displayed prices currently remain in USD.
+              Your preference is saved locally. Market Reference display uses static fallback exchange rates, not live rates.
             </p>
           </div>
 

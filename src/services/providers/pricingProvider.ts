@@ -42,11 +42,15 @@ export interface PriceAnalysis {
 }
 
 export interface ComparableNormalizationOptions {
+  cardId?: string;
   variant?: CardVariant;
+  variantSpecified?: boolean;
   condition?: CardCondition;
   isGraded?: boolean;
   language?: string;
   priceType?: 'market' | 'trend' | 'average' | 'low' | 'high';
+  maxObservationAgeMs?: number;
+  now?: number;
 }
 
 export interface PriceReference {

@@ -1,6 +1,6 @@
 import type { Card } from '@/types';
 import { storage } from './storage';
-import type { PriceObservation, PriceReference, PricingProvider, ComparableNormalizationOptions } from './providers/pricingProvider';
+import type { CardVariant, PriceObservation, PriceReference, PricingProvider, ComparableNormalizationOptions } from './providers/pricingProvider';
 import type { ConsolidatedPrice } from './engine/types';
 import { consolidatePrices } from './engine/consolidationEngine';
 import { tickermintProvider } from './providers/tickermintProvider';
@@ -8,28 +8,49 @@ import { pkmnpricesProvider } from './providers/pkmnpricesProvider';
 import { justtcgProvider } from './providers/justtcgProvider';
 import { scrydexProvider } from './providers/scrydexProvider';
 import { tcgdexProvider } from './providers/tcgdexProvider';
+import {
+  CANONICAL_CALCULATION_CURRENCY,
+  staticFallbackExchangeRateProvider,
+  type ExchangeRateProvider,
+} from './currencyService';
 
 const CACHED_PRICES_PREFIX = 'cached_prices_store:';
 const CACHED_OBS_PREFIX = 'cached_observations_store:';
 const CACHED_VERIFICATION_PREFIX = 'cached_price_verification:';
+export const DEFAULT_MAX_OBSERVATION_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function readCardVariant(value: string | undefined): CardVariant | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const variants: Record<string, CardVariant> = {
+    normal: 'normal',
+    reverse: 'reverse',
+    reverseholo: 'reverse',
+    holo: 'holo',
+    holofoil: 'holo',
+    firstedition: 'firstEdition',
+  };
+  return variants[normalized];
+}
 
 export interface PricingPolicy {
   defaultMaxAgeMs: number;
   maxObservationAgeMs: number;
-  calculationCurrency: string;
 }
 
 const DEFAULT_POLICY: PricingPolicy = {
   defaultMaxAgeMs: 24 * 60 * 60 * 1000,
-  maxObservationAgeMs: 7 * 24 * 60 * 60 * 1000,
-  calculationCurrency: 'USD',
+  maxObservationAgeMs: DEFAULT_MAX_OBSERVATION_AGE_MS,
 };
 
 export class PricingService {
   private providers: PricingProvider[] = [];
   private policy: PricingPolicy;
 
-  constructor(policy: Partial<PricingPolicy> = {}) {
+  constructor(
+    policy: Partial<PricingPolicy> = {},
+    private readonly exchangeRateProvider: ExchangeRateProvider = staticFallbackExchangeRateProvider,
+  ) {
     this.policy = { ...DEFAULT_POLICY, ...policy };
 
     // Register standard portfolio providers by default
@@ -49,13 +70,34 @@ export class PricingService {
     }
   }
 
+  private normalizationForCard(
+    card: Card,
+    normalization: ComparableNormalizationOptions | undefined,
+    now: number,
+  ): ComparableNormalizationOptions {
+    return {
+      ...normalization,
+      cardId: card.id,
+      variant: normalization?.variant ?? readCardVariant(card.identity?.variant),
+      variantSpecified: normalization?.variantSpecified === true
+        || normalization?.variant !== undefined
+        || Boolean(card.identity?.variant?.trim()),
+      isGraded: false,
+      maxObservationAgeMs: this.policy.maxObservationAgeMs,
+      now,
+    };
+  }
+
   async getConsolidatedPrice(
     card: Card,
     options?: { maxAgeMs?: number; forceRefresh?: boolean; normalization?: ComparableNormalizationOptions }
   ): Promise<ConsolidatedPrice> {
-    if (!card || !card.id) return consolidatePrices([], 'USD');
+    if (!card || !card.id) {
+      return consolidatePrices([], CANONICAL_CALCULATION_CURRENCY, undefined, this.exchangeRateProvider);
+    }
     const key = `${CACHED_OBS_PREFIX}${card.id}`;
     let obs: PriceObservation[] = [];
+    const normalization = this.normalizationForCard(card, options?.normalization, Date.now());
 
     if (typeof navigator !== 'undefined' && navigator.onLine && this.providers.length > 0) {
       try {
@@ -66,16 +108,26 @@ export class PricingService {
         }
         if (obs.length > 0) {
           storage.set(key, obs).catch(() => {});
-          return consolidatePrices(obs, this.policy.calculationCurrency, options?.normalization);
+          return consolidatePrices(obs, CANONICAL_CALCULATION_CURRENCY, {
+            ...normalization,
+            now: Date.now(),
+          }, this.exchangeRateProvider);
         }
-      } catch {}
+      } catch {
+        // Provider failures fall through to the locally cached observations.
+      }
     }
 
     try {
       const cached = await storage.get<PriceObservation[]>(key);
       if (cached && cached.length > 0) obs = cached;
-    } catch {}
-    return consolidatePrices(obs, this.policy.calculationCurrency, options?.normalization);
+    } catch {
+      // Cache read failures are treated as a cache miss.
+    }
+    return consolidatePrices(obs, CANONICAL_CALCULATION_CURRENCY, {
+      ...normalization,
+      now: Date.now(),
+    }, this.exchangeRateProvider);
   }
 
 
@@ -99,19 +151,16 @@ export class PricingService {
     if (!observations || observations.length === 0) return null;
     const now = Date.now();
 
-    let validObs = observations.filter(
-      (o) => o.price > 0 && (now - o.observedAt) <= this.policy.maxObservationAgeMs
-    );
-    if (validObs.length === 0) {
-      validObs = observations.filter((o) => o.price > 0);
-    }
-    if (validObs.length === 0) return null;
-
-    const consolidated = consolidatePrices(validObs, this.policy.calculationCurrency, normalizationOptions);
+    const consolidated = consolidatePrices(observations, CANONICAL_CALCULATION_CURRENCY, {
+      ...normalizationOptions,
+      cardId,
+      maxObservationAgeMs: this.policy.maxObservationAgeMs,
+      now,
+    }, this.exchangeRateProvider);
     if (consolidated.value === null) return null;
 
-    const activeProviders = Array.from(new Set(consolidated.observations.map((o) => o.source)));
-    const activeMarketplaces = Array.from(new Set(consolidated.observations.map((o) => o.market)));
+    const activeProviders = Array.from(new Set(consolidated.comparableObservations.map((o) => o.source)));
+    const activeMarketplaces = Array.from(new Set(consolidated.comparableObservations.map((o) => o.market)));
     const isDivergent = consolidated.status === 'review' || consolidated.status === 'high_divergence';
     let reason: string | undefined;
     if (consolidated.status === 'high_divergence') {
@@ -126,7 +175,7 @@ export class PricingService {
       currency: consolidated.currency,
       methodologyVersion: 'v1-median',
       confidence: consolidated.comparableObservationCount >= 3 ? 'high' : consolidated.comparableObservationCount >= 2 ? 'medium' : 'low',
-      sourceCount: consolidated.comparableObservationCount,
+      sourceCount: consolidated.comparableObservations.length,
       activeProviders,
       activeMarketplaces,
       updatedAt: now,
@@ -181,7 +230,11 @@ export class PricingService {
         }
 
         if (newObservations.length > 0) {
-          let freshRef = this.aggregateObservations(card.id, newObservations, options?.normalization);
+          let freshRef = this.aggregateObservations(
+            card.id,
+            newObservations,
+            this.normalizationForCard(card, options?.normalization, Date.now()),
+          );
 
           // Selective secondary verification if material divergence detected
           if (freshRef?.analysis?.requiresVerification && secondaryProviders.length > 0) {
@@ -196,7 +249,11 @@ export class PricingService {
             }
 
             // Recalculate reference with secondary observations
-            freshRef = this.aggregateObservations(card.id, newObservations, options?.normalization);
+            freshRef = this.aggregateObservations(
+              card.id,
+              newObservations,
+              this.normalizationForCard(card, options?.normalization, Date.now()),
+            );
             if (freshRef && freshRef.analysis) {
               freshRef.analysis.verifiedAt = Date.now();
               freshRef.analysis.verificationProvider = secondaryProviders.map((p) => p.name).join(', ');
@@ -227,7 +284,9 @@ export class PricingService {
         const derived = this.aggregateObservations(card.id, cachedObs, options?.normalization);
         if (derived) return derived;
       }
-    } catch {}
+    } catch {
+      // Cache read failures are non-fatal for the optional reference lookup.
+    }
 
     return null;
   }

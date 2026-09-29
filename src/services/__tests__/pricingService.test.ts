@@ -9,12 +9,11 @@ const mockSet = vi.fn();
 vi.mock('../storage', () => ({
   storage: {
     get: (key: string) => mockGet(key),
-    set: (key: string, val: any) => mockSet(key, val),
+    set: (key: string, val: unknown) => mockSet(key, val),
   },
 }));
 
 // Mock Navigator
-const originalOnline = globalThis.navigator?.onLine ?? true;
 function setOnline(online: boolean) {
   Object.defineProperty(globalThis.navigator, 'onLine', {
     value: online,
@@ -332,6 +331,134 @@ describe('PricingService', () => {
     const ref = pricingService.aggregateObservations('sv3pt5-1', observations);
     expect(ref?.referencePrice).toBe(10.00); // Stale should be filtered out
     expect(ref?.sourceCount).toBe(1);
+  });
+
+  it('applies identity, price-type, and freshness comparability on the displayed price path', async () => {
+    const observedAt = Date.now();
+    const cardmarket = {
+      cardId: baseCard.id,
+      source: 'tcgdex',
+      market: 'cardmarket',
+      price: 10,
+      currency: 'EUR',
+      priceType: 'trend',
+      observedAt,
+      fetchedAt: observedAt,
+      metadata: { field: 'trend', providerListingId: 'cm-1' },
+    } satisfies PriceObservation;
+    const tcgplayer = {
+      cardId: baseCard.id,
+      variant: 'normal',
+      source: 'tcgdex',
+      market: 'tcgplayer',
+      price: 10,
+      currency: 'USD',
+      priceType: 'market',
+      observedAt,
+      fetchedAt: observedAt,
+      metadata: { field: 'marketPrice', providerListingId: 'tp-1' },
+    } satisfies PriceObservation;
+    const stale = { ...tcgplayer, price: 100, observedAt: observedAt - 10 * 24 * 60 * 60 * 1000 };
+    const low = { ...tcgplayer, price: 200, priceType: 'low' as const, metadata: { field: 'lowPrice' } };
+    const otherCard = { ...tcgplayer, cardId: 'another-card', price: 300 };
+    pricingService.clearProviders();
+    pricingService.registerProvider({
+      name: 'tcgdex',
+      fetchPrices: vi.fn().mockResolvedValue([cardmarket, tcgplayer, stale, low, otherCard]),
+    });
+
+    const result = await pricingService.getConsolidatedPrice(baseCard);
+
+    expect(result.value).toBe(10.4);
+    expect(result.comparableObservations).toEqual([cardmarket, tcgplayer]);
+    expect(result.observations).toHaveLength(5);
+    expect(result.excludedObservations.map(({ reason }) => reason)).toEqual([
+      'stale',
+      'price-type',
+      'card-identity',
+    ]);
+    expect(result.explanation.comparableObservationCount).toBe(2);
+    expect(result.explanation.marketplaces).toEqual(['cardmarket', 'tcgplayer']);
+    expect(result.explanation.providers).toEqual(['tcgdex']);
+    expect(result.comparableObservations[0]).toMatchObject({
+      source: 'tcgdex',
+      market: 'cardmarket',
+      priceType: 'trend',
+      currency: 'EUR',
+      observedAt,
+      fetchedAt: observedAt,
+      metadata: { providerListingId: 'cm-1' },
+    });
+  });
+
+  it('requires the known printing variant on the displayed price path', async () => {
+    const holoCard: Card = {
+      ...baseCard,
+      identity: { tcgdexId: baseCard.id, variant: 'holo' },
+    };
+    const observations: PriceObservation[] = [
+      {
+        cardId: baseCard.id,
+        variant: 'normal',
+        source: 'tcgdex',
+        market: 'tcgplayer',
+        price: 10,
+        currency: 'USD',
+        priceType: 'market',
+        observedAt: Date.now(),
+        fetchedAt: Date.now(),
+        metadata: { field: 'marketPrice' },
+      },
+      {
+        cardId: baseCard.id,
+        variant: 'holo',
+        source: 'tcgdex',
+        market: 'tcgplayer',
+        price: 20,
+        currency: 'USD',
+        priceType: 'market',
+        observedAt: Date.now(),
+        fetchedAt: Date.now(),
+        metadata: { field: 'marketPrice' },
+      },
+    ];
+    pricingService.clearProviders();
+    pricingService.registerProvider({
+      name: 'tcgdex',
+      fetchPrices: vi.fn().mockResolvedValue(observations),
+    });
+
+    const result = await pricingService.getConsolidatedPrice(holoCard);
+
+    expect(result.value).toBe(20);
+    expect(result.comparableObservations.map(({ variant }) => variant)).toEqual(['holo']);
+    expect(result.excludedObservations).toEqual([
+      { observation: observations[0], reason: 'variant' },
+    ]);
+  });
+
+  it('does not display an all-stale cached observation as a current reference', async () => {
+    const staleObservation: PriceObservation = {
+      cardId: baseCard.id,
+      source: 'tcgdex',
+      market: 'tcgplayer',
+      price: 12,
+      currency: 'USD',
+      priceType: 'market',
+      observedAt: Date.now() - 10 * 24 * 60 * 60 * 1000,
+      fetchedAt: Date.now(),
+      metadata: { field: 'marketPrice' },
+    };
+    setOnline(false);
+    mockGet.mockResolvedValue([staleObservation]);
+
+    const result = await pricingService.getConsolidatedPrice(baseCard);
+
+    expect(result.value).toBeNull();
+    expect(result.explanation.freshness).toBe('stale');
+    expect(result.excludedObservations).toEqual([
+      { observation: staleObservation, reason: 'stale' },
+    ]);
   });
 
   it('returns a fresh cached reference while offline without requesting providers', async () => {

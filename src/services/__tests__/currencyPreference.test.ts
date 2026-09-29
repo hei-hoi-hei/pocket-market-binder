@@ -23,7 +23,15 @@ describe('currency preference', () => {
 
   it('defaults missing or invalid values to USD', () => {
     expect(readCurrencyPreference(createMemoryStorage())).toBe('USD');
-    expect(readCurrencyPreference(createMemoryStorage({ 'pmb:currency': 'CAD' }))).toBe('USD');
+    expect(readCurrencyPreference(createMemoryStorage({ 'pmb:currency': 'unknown' }))).toBe('USD');
+  });
+
+  it('accepts every currency supported by the conversion service', () => {
+    for (const currency of ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'PHP'] as const) {
+      const storage = createMemoryStorage();
+      writeCurrencyPreference(currency, storage);
+      expect(readCurrencyPreference(storage)).toBe(currency);
+    }
   });
 
   it('falls back to USD when local storage cannot be read', () => {
@@ -38,7 +46,7 @@ describe('currency preference', () => {
   it('rejects unsupported values before writing', () => {
     const storage = createMemoryStorage();
 
-    expect(() => writeCurrencyPreference('CAD' as 'USD', storage)).toThrow(/Unsupported currency/);
+    expect(() => writeCurrencyPreference('XYZ' as 'USD', storage)).toThrow(/Unsupported currency/);
     expect(readCurrencyPreference(storage)).toBe('USD');
   });
 });
