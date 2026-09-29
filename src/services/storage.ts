@@ -14,14 +14,15 @@ export interface KVStore {
 
 const DB_NAME = 'pocket-market-binder';
 const STORE_NAME = 'kv-store';
-const DB_VERSION = 1;
+export const RECOGNITION_REFERENCES_STORE = 'scanner-recognition-references';
+const DB_VERSION = 2;
 const OLD_PREFIX = 'pmb:';
 
 class IndexedDBStore implements KVStore {
   private db: IDBDatabase | null = null;
   private initPromise: Promise<IDBDatabase> | null = null;
 
-  private async getDB(): Promise<IDBDatabase> {
+  async openDatabase(): Promise<IDBDatabase> {
     if (this.db) return this.db;
     if (this.initPromise) return this.initPromise;
 
@@ -35,6 +36,7 @@ class IndexedDBStore implements KVStore {
 
       request.onsuccess = () => {
         this.db = request.result;
+        this.db.onversionchange = () => this.close();
         resolve(request.result);
       };
 
@@ -43,10 +45,22 @@ class IndexedDBStore implements KVStore {
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
         }
+        if (!db.objectStoreNames.contains(RECOGNITION_REFERENCES_STORE)) {
+          const references = db.createObjectStore(RECOGNITION_REFERENCES_STORE, {
+            keyPath: 'referenceId',
+          });
+          references.createIndex('identityKey', 'identityKey', { unique: false });
+        }
       };
     });
 
     return this.initPromise;
+  }
+
+  close(): void {
+    this.db?.close();
+    this.db = null;
+    this.initPromise = null;
   }
 
   /**
@@ -73,7 +87,7 @@ class IndexedDBStore implements KVStore {
 
   async get<T>(key: string): Promise<T | null> {
     try {
-      const db = await this.getDB();
+      const db = await this.openDatabase();
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(STORE_NAME, 'readonly');
         const store = transaction.objectStore(STORE_NAME);
@@ -90,7 +104,7 @@ class IndexedDBStore implements KVStore {
 
   async set<T>(key: string, value: T): Promise<void> {
     try {
-      const db = await this.getDB();
+      const db = await this.openDatabase();
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
@@ -106,7 +120,7 @@ class IndexedDBStore implements KVStore {
 
   async remove(key: string): Promise<void> {
     try {
-      const db = await this.getDB();
+      const db = await this.openDatabase();
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
@@ -123,8 +137,15 @@ class IndexedDBStore implements KVStore {
 
 const idbStore = new IndexedDBStore();
 
+export function openLocalDatabase(): Promise<IDBDatabase> {
+  return idbStore.openDatabase();
+}
+
+export function closeLocalDatabase(): void {
+  idbStore.close();
+}
+
 // Trigger migration in the background
 idbStore.migrateIfNeeded().catch(() => {});
 
 export const storage: KVStore = idbStore;
-

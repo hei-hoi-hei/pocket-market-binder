@@ -60,11 +60,31 @@ export interface ScannerCandidate {
   providerMetadata?: Record<string, Record<string, string | number | boolean>>;
 }
 
-declare const confirmedScannerCandidateBrand: unique symbol;
+const confirmedScannerCandidateBrand: unique symbol = Symbol('confirmedScannerCandidate');
+const scannerCandidateConfirmations = new WeakMap<object, string>();
 
 export type ConfirmedScannerCandidate = ScannerCandidate & {
   readonly [confirmedScannerCandidateBrand]: true;
 };
+
+export function confirmScannerCandidate(candidate: ScannerCandidate): ConfirmedScannerCandidate {
+  const confirmedCandidate = { ...candidate } as ConfirmedScannerCandidate;
+  Object.defineProperty(confirmedCandidate, confirmedScannerCandidateBrand, { value: true });
+  scannerCandidateConfirmations.set(confirmedCandidate, new Date().toISOString());
+  return confirmedCandidate;
+}
+
+export function getScannerCandidateConfirmationTime(
+  candidate: ConfirmedScannerCandidate,
+): string | undefined {
+  return scannerCandidateConfirmations.get(candidate);
+}
+
+export function isConfirmedScannerCandidate(value: unknown): value is ConfirmedScannerCandidate {
+  return typeof value === 'object' &&
+    value !== null &&
+    scannerCandidateConfirmations.has(value);
+}
 
 export interface ScannerIdentificationInput {
   image: Blob;

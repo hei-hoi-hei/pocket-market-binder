@@ -116,7 +116,8 @@ describe('CandidateReview', () => {
 
     const confirmed = confirmCandidateReviewSelection([pikachu], 0, onConfirm);
 
-    expect(confirmed).toBe(pikachu);
+    expect(confirmed).toEqual(pikachu);
+    expect(confirmed).not.toBe(pikachu);
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onConfirm).toHaveBeenCalledWith(pikachu);
     expect(onConfirm.mock.calls[0][0]).not.toHaveProperty('cardId');
