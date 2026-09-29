@@ -334,4 +334,45 @@ describe('PricingService', () => {
     expect(ref?.sourceCount).toBe(1);
   });
 
+  it('returns a fresh cached reference while offline without requesting providers', async () => {
+    const cachedReference: PriceReference = {
+      cardId: baseCard.id,
+      referencePrice: 12.5,
+      currency: 'USD',
+      methodologyVersion: 'v1-median',
+      confidence: 'low',
+      sourceCount: 1,
+      activeProviders: ['tcgdex'],
+      activeMarketplaces: ['tcgplayer'],
+      updatedAt: Date.now(),
+    };
+    setOnline(false);
+    mockGet.mockResolvedValue(cachedReference);
+
+    await expect(pricingService.getPriceReference(baseCard)).resolves.toEqual(cachedReference);
+    expect(mockGet).toHaveBeenCalledWith(`cached_prices_store:${baseCard.id}`);
+  });
+
+  it('falls back to a stale cached reference when online providers return no prices', async () => {
+    const staleReference: PriceReference = {
+      cardId: baseCard.id,
+      referencePrice: 9.75,
+      currency: 'USD',
+      methodologyVersion: 'v1-median',
+      confidence: 'low',
+      sourceCount: 1,
+      activeProviders: ['tcgdex'],
+      activeMarketplaces: ['tcgplayer'],
+      updatedAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
+    };
+    pricingService.clearProviders();
+    pricingService.registerProvider({
+      name: 'tcgdex',
+      fetchPrices: vi.fn().mockResolvedValue([]),
+    });
+    mockGet.mockResolvedValue(staleReference);
+
+    await expect(pricingService.getPriceReference(baseCard)).resolves.toEqual(staleReference);
+    expect(mockGet).toHaveBeenCalledWith(`cached_prices_store:${baseCard.id}`);
+  });
 });

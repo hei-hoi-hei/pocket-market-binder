@@ -76,162 +76,129 @@ export function mapTCGdexToCard(raw: any): Card {
   return card;
 }
 
-export function extractTCGdexObservations(cardId: string, data: any): PriceObservation[] {
-  if (!data || !data.prices) return [];
-  const obs: PriceObservation[] = [];
-  const fetchedAt = Date.now();
+type TCGdexPriceType = PriceObservation['priceType'];
+type TCGdexVariant = NonNullable<PriceObservation['variant']>;
 
-  const pricesObj = data.prices;
-
-  // 1. TCGplayer
-  if (pricesObj.tcgplayer && typeof pricesObj.tcgplayer === 'object') {
-    const tcg = pricesObj.tcgplayer;
-    const observedAt = parseTCGdexDate(tcg.updatedAt) ?? fetchedAt;
-    const currency = 'USD';
-
-    if (typeof tcg.market === 'number' && tcg.market > 0) {
-      obs.push({
-        cardId,
-        source: 'tcgdex',
-        market: 'tcgplayer',
-        price: tcg.market,
-        currency,
-        priceType: 'market',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'market' },
-      });
-    }
-    if (typeof tcg.low === 'number' && tcg.low > 0) {
-      obs.push({
-        cardId,
-        source: 'tcgdex',
-        market: 'tcgplayer',
-        price: tcg.low,
-        currency,
-        priceType: 'low',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'low' },
-      });
-    }
-    if (typeof tcg.mid === 'number' && tcg.mid > 0) {
-      obs.push({
-        cardId,
-        source: 'tcgdex',
-        market: 'tcgplayer',
-        price: tcg.mid,
-        currency,
-        priceType: 'average',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'mid' },
-      });
-    }
-    if (typeof tcg.high === 'number' && tcg.high > 0) {
-      obs.push({
-        cardId,
-        source: 'tcgdex',
-        market: 'tcgplayer',
-        price: tcg.high,
-        currency,
-        priceType: 'high',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'high' },
-      });
-    }
-  }
-
-  // 2. Cardmarket
-  if (pricesObj.cardmarket && typeof pricesObj.cardmarket === 'object') {
-    const cm = pricesObj.cardmarket;
-    const observedAt = parseTCGdexDate(cm.updatedAt) ?? fetchedAt;
-    const currency = 'EUR';
-
-    if (typeof cm.trend === 'number' && cm.trend > 0) {
-      obs.push({
-        cardId,
-        source: 'tcgdex',
-        market: 'cardmarket',
-        price: cm.trend,
-        currency,
-        priceType: 'trend',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'trend' },
-      });
-    }
-    if (typeof cm.avg === 'number' && cm.avg > 0) {
-      obs.push({
-        cardId,
-        source: 'tcgdex',
-        market: 'cardmarket',
-        price: cm.avg,
-        currency,
-        priceType: 'average',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'avg' },
-      });
-    }
-    if (typeof cm.low === 'number' && cm.low > 0) {
-      obs.push({
-        cardId,
-        source: 'tcgdex',
-        market: 'cardmarket',
-        price: cm.low,
-        currency,
-        priceType: 'low',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'low' },
-      });
-    }
-    if (typeof cm.reverseHoloAvg === 'number' && cm.reverseHoloAvg > 0) {
-      obs.push({
-        cardId,
-        variant: 'reverse',
-        source: 'tcgdex',
-        market: 'cardmarket',
-        price: cm.reverseHoloAvg,
-        currency,
-        priceType: 'average',
-        observedAt,
-        fetchedAt,
-        metadata: { field: 'reverseHoloAvg' },
-      });
-    }
-  }
-
-  // 3. Generic handler for other markets
-  Object.entries(pricesObj).forEach(([marketKey, marketVal]: [string, any]) => {
-    if (marketKey === 'tcgplayer' || marketKey === 'cardmarket') return;
-    if (marketVal && typeof marketVal === 'object') {
-      const observedAt = parseTCGdexDate(marketVal.updatedAt) ?? fetchedAt;
-      const currency = marketVal.unit === '€' ? 'EUR' : 'USD';
-      if (typeof marketVal.market === 'number' && marketVal.market > 0) {
-        obs.push({
-          cardId,
-          source: 'tcgdex',
-          market: marketKey,
-          price: marketVal.market,
-          currency,
-          priceType: 'market',
-          observedAt,
-          fetchedAt,
-        });
-      }
-    }
-  });
-
-  return obs;
+interface TCGdexMarketData {
+  updatedAt: number;
+  currency: 'USD' | 'EUR';
 }
 
-function parseTCGdexDate(dateStr?: string): number | null {
-  if (!dateStr) return null;
+const CARDMARKET_FIELDS: Array<{
+  field: string;
+  priceType: TCGdexPriceType;
+  variant?: TCGdexVariant;
+}> = [
+  { field: 'avg', priceType: 'average' },
+  { field: 'low', priceType: 'low' },
+  { field: 'trend', priceType: 'trend' },
+  { field: 'avg-holo', priceType: 'average', variant: 'holo' },
+  { field: 'low-holo', priceType: 'low', variant: 'holo' },
+  { field: 'trend-holo', priceType: 'trend', variant: 'holo' },
+];
+
+const TCGPLAYER_VARIANTS: Record<string, TCGdexVariant> = {
+  normal: 'normal',
+  reverse: 'reverse',
+  holo: 'holo',
+  holofoil: 'holo',
+};
+
+const TCGPLAYER_FIELDS: Array<{
+  field: string;
+  priceType: TCGdexPriceType;
+}> = [
+  { field: 'lowPrice', priceType: 'low' },
+  { field: 'midPrice', priceType: 'average' },
+  { field: 'highPrice', priceType: 'high' },
+  { field: 'marketPrice', priceType: 'market' },
+  { field: 'directLowPrice', priceType: 'low' },
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseTCGdexDate(dateStr: unknown): number | null {
+  if (typeof dateStr !== 'string' || !dateStr.trim()) return null;
   const parsed = Date.parse(dateStr);
-  return isNaN(parsed) ? null : parsed;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readMarketData(value: unknown): TCGdexMarketData | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const updatedAt = parseTCGdexDate(value.updated);
+  const currency = value.unit;
+  if (updatedAt === null || (currency !== 'USD' && currency !== 'EUR')) return undefined;
+
+  return { updatedAt, currency };
+}
+
+export function extractTCGdexObservations(cardId: string, data: unknown): PriceObservation[] {
+  if (typeof cardId !== 'string' || !cardId.trim() ||
+    !isRecord(data) || data.id !== cardId || !isRecord(data.pricing)) return [];
+
+  const observations: PriceObservation[] = [];
+  const fetchedAt = Date.now();
+
+  const append = (
+    market: 'cardmarket' | 'tcgplayer',
+    marketData: TCGdexMarketData,
+    values: Record<string, unknown>,
+    field: string,
+    priceType: TCGdexPriceType,
+    variant?: TCGdexVariant,
+  ) => {
+    const price = values[field];
+    if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) return;
+
+    observations.push({
+      cardId,
+      ...(variant ? { variant } : {}),
+      source: 'tcgdex',
+      market,
+      price,
+      currency: marketData.currency,
+      priceType,
+      observedAt: marketData.updatedAt,
+      fetchedAt,
+      metadata: {
+        field,
+        ...(validListingId(values.productId ?? values.idProduct)
+          ? { providerListingId: values.productId ?? values.idProduct }
+          : {}),
+      },
+    });
+  };
+
+  const cardmarket = data.pricing.cardmarket;
+  const cardmarketData = readMarketData(cardmarket);
+  if (cardmarketData && isRecord(cardmarket)) {
+    for (const { field, priceType, variant } of CARDMARKET_FIELDS) {
+      append('cardmarket', cardmarketData, cardmarket, field, priceType, variant);
+    }
+  }
+
+  const tcgplayer = data.pricing.tcgplayer;
+  const tcgplayerData = readMarketData(tcgplayer);
+  if (tcgplayerData && isRecord(tcgplayer)) {
+    for (const [variantKey, variantPrices] of Object.entries(tcgplayer)) {
+      const variant = TCGPLAYER_VARIANTS[variantKey];
+      if (!variant || !isRecord(variantPrices)) continue;
+
+      for (const { field, priceType } of TCGPLAYER_FIELDS) {
+        append('tcgplayer', tcgplayerData, variantPrices, field, priceType, variant);
+      }
+    }
+  }
+
+  return observations;
+}
+
+function validListingId(value: unknown): boolean {
+  return (typeof value === 'string' && value.trim().length > 0) ||
+    (typeof value === 'number' && Number.isSafeInteger(value) && value > 0);
 }
 
 export class TCGdexProvider implements CatalogProvider {
