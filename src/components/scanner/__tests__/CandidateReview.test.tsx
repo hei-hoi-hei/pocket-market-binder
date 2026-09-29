@@ -11,9 +11,11 @@ import {
 import type { ScannerCandidate, ScannerIdentificationResult } from '@/services/scanner/types';
 
 const pikachu: ScannerCandidate = {
+  catalogId: 'sv03.5-025',
   name: 'Pikachu',
   collectorNumber: '025',
   setCode: 'SVP',
+  region: { left: 0.1, top: 0.2, width: 0.5, height: 0.3 },
   confidence: 0.42,
   evidence: [
     { label: 'printed name', value: 'Pikachu', confidence: 0.88 },
@@ -151,6 +153,14 @@ describe('CandidateReview', () => {
     expect(markup).toContain('42% (informational only)');
     expect(markup).toContain('printed name');
     expect(markup).toContain('88% evidence confidence');
+  });
+
+  it('labels a suggested catalog ID as unverified during candidate review', () => {
+    const markup = renderReview({ status: 'success', candidates: [pikachu] });
+
+    expect(markup).toContain('Suggested catalog ID (unverified)');
+    expect(markup).toContain('sv03.5-025');
+    expect(markup).toContain('Recognition candidate — not catalog identity');
   });
 
   it('does not make network or collection callback calls while rendering candidate review', () => {

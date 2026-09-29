@@ -22,6 +22,7 @@ interface CandidateReviewProps {
 
 function CandidateDetails({ candidate, index }: { candidate: ScannerCandidate; index: number }) {
   const fields = [
+    ['Suggested catalog ID (unverified)', candidate.catalogId],
     ['Name', candidate.name],
     ['Collector number', candidate.collectorNumber],
     ['Set code', candidate.setCode],
@@ -171,7 +172,7 @@ export function CandidateReview({
           {state.confirmedIndex !== null && (
             <p className="mt-3 flex items-start gap-2 rounded-lg border border-gold-300 bg-gold-50 p-3 text-sm text-leather-700" role="status">
               <CheckCircle2 className="h-5 w-5 shrink-0 text-gold-700" />
-              Candidate confirmed for a future catalog identity step. No catalog ID was assigned and no collection was changed.
+              Candidate confirmed for a future catalog identity step. No catalog identity was resolved and no collection was changed.
             </p>
           )}
         </>

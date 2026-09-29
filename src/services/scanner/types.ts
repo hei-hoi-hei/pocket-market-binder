@@ -4,10 +4,21 @@ export interface ScannerEvidence {
   confidence?: number;
 }
 
+export interface ScannerCandidateRegion {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export interface ScannerCandidate {
+  /** Suggested canonical catalog ID, not a verified or accepted identity. */
+  catalogId?: string;
   name?: string;
   collectorNumber?: string;
   setCode?: string;
+  /** Normalized [0, 1] rectangle relative to the original image. */
+  region?: ScannerCandidateRegion;
   /** A provider score normalized to the inclusive range 0..1. */
   confidence?: number;
   evidence?: ScannerEvidence[];

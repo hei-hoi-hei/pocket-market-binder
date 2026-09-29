@@ -26,26 +26,43 @@ describe('scanner recognition boundary', () => {
     vi.unstubAllGlobals();
   });
 
-  it('normalizes recognized clues, confidence, evidence, and provider metadata', () => {
+  it('normalizes catalog suggestions, clues, evidence, regions, confidence, and metadata', () => {
     expect(normalizeScannerResult({
       status: 'success',
+      source: 'local-recognizer',
       candidates: [{
+        catalogId: 'base1-25',
         name: '  Pikachu  ',
         collectorNumber: ' 025 ',
+        setCode: ' base1 ',
+        region: { left: 0.1, top: 0.2, width: 0.5, height: 0.3 },
         confidence: 0.86,
         evidence: [{ label: 'printed name', value: ' Pikachu ', confidence: 0.92 }],
         metadata: { engine: 'local-test', wordCount: 4 },
-        cardId: 'provider-specific-card-id',
       }],
     })).toEqual({
       status: 'success',
+      source: 'local-recognizer',
       candidates: [{
+        catalogId: 'base1-25',
         name: 'Pikachu',
         collectorNumber: '025',
+        setCode: 'base1',
+        region: { left: 0.1, top: 0.2, width: 0.5, height: 0.3 },
         confidence: 0.86,
         evidence: [{ label: 'printed name', value: 'Pikachu', confidence: 0.92 }],
         metadata: { engine: 'local-test', wordCount: 4 },
       }],
+    });
+  });
+
+  it('preserves an ID-only suggestion as unverified candidate data', () => {
+    expect(normalizeScannerResult({
+      status: 'success',
+      candidates: [{ catalogId: 'base1-25' }],
+    })).toEqual({
+      status: 'success',
+      candidates: [{ catalogId: 'base1-25' }],
     });
   });
 
@@ -101,6 +118,20 @@ describe('scanner recognition boundary', () => {
       message: 'The scanner provider returned an invalid result.',
       retryable: true,
     });
+  });
+
+  it('rejects malformed catalog IDs and regions outside normalized image bounds', () => {
+    for (const candidate of [
+      { catalogId: 42, name: 'Pikachu' },
+      { name: 'Pikachu', region: { left: 0.9, top: 0.2, width: 0.2, height: 0.3 } },
+      { name: 'Pikachu', region: { left: 0, top: 0, width: 0, height: 0.3 } },
+    ]) {
+      expect(normalizeScannerResult({ status: 'success', candidates: [candidate] })).toEqual({
+        status: 'error',
+        message: 'The scanner provider returned an invalid result.',
+        retryable: true,
+      });
+    }
   });
 
   it('surfaces provider failures as retryable recognition errors', async () => {

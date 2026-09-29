@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assessScannerCandidates,
   describeFixtureImage,
   parseScannerBenchmarkFixtures,
   resolveFixtureImagePath,
@@ -14,6 +15,9 @@ const localFixture: ScannerBenchmarkFixture = {
   setCode: 'sv03.5',
   layout: 'modern ex',
   condition: 'indoor warm light, slight rotation, dark background',
+  captureConditions: ['lighting-good', 'perspective-slight', 'background-busy', 'sleeved'],
+  cardCharacteristics: ['modern-pokemon', 'special-art', 'similar-name-neighbor'],
+  language: 'en',
   imagePath: 'photos/card-01.jpg',
   imageWidth: 3024,
   imageHeight: 4032,
@@ -35,6 +39,55 @@ describe('scanner benchmark inputs', () => {
       ...localFixture,
       nameRegion: { left: 0.8, top: 0.8, width: 0.4, height: 0.4 },
     }])).toThrow(/valid expected clues and image metadata/);
+  });
+
+  it('accepts searchable capture/card labels and rejects malformed labels', () => {
+    expect(parseScannerBenchmarkFixtures([localFixture])[0]).toMatchObject({
+      captureConditions: ['lighting-good', 'perspective-slight', 'background-busy', 'sleeved'],
+      cardCharacteristics: ['modern-pokemon', 'special-art', 'similar-name-neighbor'],
+      language: 'en',
+    });
+
+    expect(() => parseScannerBenchmarkFixtures([{
+      ...localFixture,
+      captureConditions: ['glare', 42],
+    }])).toThrow(/valid expected clues and image metadata/);
+  });
+
+  it('accepts local no-match examples without a catalog ID and requires local image data', () => {
+    const fixture = { ...localFixture, id: undefined, expectedOutcome: 'no-match' as const };
+    expect(parseScannerBenchmarkFixtures([fixture])).toEqual([fixture]);
+
+    expect(() => parseScannerBenchmarkFixtures([{
+      ...fixture,
+      imagePath: undefined,
+    }])).toThrow(/valid expected clues and image metadata/);
+    expect(() => parseScannerBenchmarkFixtures([{
+      ...localFixture,
+      id: undefined,
+      expectedOutcome: 'match',
+    }])).toThrow(/valid expected clues and image metadata/);
+  });
+
+  it('scores match rank and no-match false positives from candidate IDs', () => {
+    expect(assessScannerCandidates('match', 'card-2', ['card-1', 'card-2', 'card-3']))
+      .toEqual({
+        correctCandidatePresent: true,
+        correctCandidateRank: 2,
+        falsePositive: false,
+      });
+    expect(assessScannerCandidates('no-match', undefined, ['card-1']))
+      .toEqual({
+        correctCandidatePresent: false,
+        correctCandidateRank: null,
+        falsePositive: true,
+      });
+    expect(assessScannerCandidates('no-match', undefined, []))
+      .toEqual({
+        correctCandidatePresent: false,
+        correctCandidateRank: null,
+        falsePositive: false,
+      });
   });
 
   it('resolves local photo paths relative to the manifest and reports only the filename', () => {

@@ -719,11 +719,11 @@ This section distinguishes **design intent from actual implementation**.
 | Unrestricted custom color editor | **Outside current scope** | Curated themes are preferred. |
 | Browser image acquisition | **Partially Implemented** | File input uses `accept="image/*"` and `capture="environment"`; browser/device behavior varies. |
 | Direct/native camera API | **Missing** | No `getUserMedia`, `MediaDevices`, `ImageCapture`, or native camera plugin flow. |
-| Recognition boundary | **Implemented** | Validates non-empty image MIME input and normalizes untrusted provider responses into clues, confidence, evidence, and metadata; no catalog IDs or collection mutations. |
+| Recognition boundary | **Implemented** | Validates non-empty image MIME input and normalizes untrusted provider responses into clues, optional unverified catalog-ID suggestions, confidence, evidence, image regions, and metadata; no identity resolution or collection mutations. |
 | Offline recognition fallback | **Implemented** | Explicit `offline` provider requires no credentials/network and returns unavailable without fabricating results when no local engine is configured. |
 | Production image identification/OCR | **Missing** | OCR dependency is used by isolated benchmark only; no production recognition engine is selected or registered. |
 | Candidate generation | **Missing** | Structured unresolved candidates can be normalized, but no production provider generates live results. |
-| Candidate review/confirmation | **Implemented boundary** | Provider-agnostic UI displays normalized candidate clues and emits the explicitly confirmed candidate only; catalog identity is not assigned. |
+| Candidate review/confirmation | **Implemented boundary** | Provider-agnostic UI displays normalized candidate clues and marks any catalog-ID suggestion unverified; only explicit confirmation emits the candidate, and catalog identity is not assigned. |
 | Scanner-to-catalog identity boundary | **Implemented; no live provider configured** | Requires a confirmed candidate; only normalized existing catalog records can supply an ID; ambiguous/no-match/provider failure remain explicit. |
 | Scanner-to-collection action | **Missing** | Manual collection action exists; scanner results cannot mutate collection. |
 | Scanner failure/manual fallback | **Partially Implemented** | Provider-unavailable/error results fall through to the offline unavailable result; manual catalog search remains available. |

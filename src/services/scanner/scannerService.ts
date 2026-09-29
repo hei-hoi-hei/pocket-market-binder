@@ -1,5 +1,6 @@
 import type {
   ScannerCandidate,
+  ScannerCandidateRegion,
   ScannerEvidence,
   ScannerIdentificationInput,
   ScannerIdentificationResult,
@@ -27,6 +28,30 @@ function readConfidence(record: UnknownRecord, key: string): number | undefined 
   if (value === undefined || value === null) return undefined;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) return null;
   return value;
+}
+
+function readCandidateRegion(value: unknown): ScannerCandidateRegion | undefined | null {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value)) return null;
+
+  const { left, top, width, height } = value;
+  if (
+    typeof left !== 'number' ||
+    typeof top !== 'number' ||
+    typeof width !== 'number' ||
+    typeof height !== 'number' ||
+    ![left, top, width, height].every(Number.isFinite) ||
+    left < 0 ||
+    top < 0 ||
+    width <= 0 ||
+    height <= 0 ||
+    left + width > 1 ||
+    top + height > 1
+  ) {
+    return null;
+  }
+
+  return { left, top, width, height };
 }
 
 function normalizeEvidence(value: unknown): ScannerEvidence[] | null {
@@ -70,29 +95,35 @@ function normalizeMetadata(value: unknown): ScannerCandidate['metadata'] | null 
 function normalizeCandidate(value: unknown): ScannerCandidate | null {
   if (!isRecord(value)) return null;
 
+  const catalogId = readOptionalText(value, 'catalogId');
   const name = readOptionalText(value, 'name');
   const collectorNumber = readOptionalText(value, 'collectorNumber');
   const setCode = readOptionalText(value, 'setCode');
+  const region = readCandidateRegion(value.region);
   const confidence = readConfidence(value, 'confidence');
   const evidence = normalizeEvidence(value.evidence);
   const metadata = normalizeMetadata(value.metadata);
 
   if (
+    catalogId === null ||
     name === null ||
     collectorNumber === null ||
     setCode === null ||
+    region === null ||
     confidence === null ||
     evidence === null ||
     metadata === null
   ) {
     return null;
   }
-  if (!name && !collectorNumber && !setCode && evidence.length === 0) return null;
+  if (!catalogId && !name && !collectorNumber && !setCode && evidence.length === 0) return null;
 
   return {
+    ...(catalogId ? { catalogId } : {}),
     ...(name ? { name } : {}),
     ...(collectorNumber ? { collectorNumber } : {}),
     ...(setCode ? { setCode } : {}),
+    ...(region ? { region } : {}),
     ...(confidence === undefined ? {} : { confidence }),
     ...(evidence.length > 0 ? { evidence } : {}),
     ...(metadata === undefined ? {} : { metadata }),

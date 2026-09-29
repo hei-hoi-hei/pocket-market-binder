@@ -5,6 +5,7 @@ import defaultFixtures from './scanner-benchmark-fixtures.json';
 import { matchTextEvidence, type ScannerTextEvidence } from './scanner-benchmark-matcher';
 import {
   describeFixtureImage,
+  assessScannerCandidates,
   parseScannerBenchmarkFixtures,
   resolveFixtureImagePath,
   resolveOcrRegion,
@@ -36,6 +37,7 @@ interface BenchmarkResult extends Fixture {
   candidateCount: number;
   correctCandidatePresent: boolean;
   correctCandidateRank: number | null;
+  falsePositive: boolean;
   ocrElapsedMs: number;
   repeatRecognitionMs: number;
   workerInitializationMs: number;
@@ -67,6 +69,7 @@ function normalizeCollectorNumber(value: string): string {
 }
 
 function fixtureImageUrl(fixture: Fixture): string {
+  if (!fixture.id) throw new Error('A TCGdex image fixture requires an expected catalog ID.');
   const language = fixture.id.startsWith('base')
     ? 'base'
     : fixture.id.startsWith('swsh')
@@ -90,6 +93,7 @@ async function loadFixtureImage(
     };
   }
 
+  if (!fixture.id) throw new Error('A remote benchmark fixture requires an expected catalog ID.');
   const sourceUrl = fixtureImageUrl(fixture);
   const cachePath = resolve(CACHE_DIR, `${fixture.id.replace(/[^a-zA-Z0-9.-]/g, '_')}.webp`);
   try {
@@ -181,7 +185,11 @@ async function main(): Promise<void> {
         rawText: evidence.wholeCard,
       };
       const ranked = await matchTextEvidence(ocrEvidence);
-      const correctCandidateRank = ranked.findIndex(({ card }) => card.id === fixture.id);
+      const assessment = assessScannerCandidates(
+        fixture.expectedOutcome,
+        fixture.id,
+        ranked.map(({ card }) => card.id),
+      );
       const fixtureReport = { ...fixture };
       delete fixtureReport.imagePath;
       results.push({
@@ -199,8 +207,7 @@ async function main(): Promise<void> {
         query: evidence.name,
         ocrUsable: Boolean(normalizedName || normalizedCollector),
         candidateCount: ranked.length,
-        correctCandidatePresent: correctCandidateRank >= 0,
-        correctCandidateRank: correctCandidateRank >= 0 ? correctCandidateRank + 1 : null,
+        ...assessment,
         ocrElapsedMs,
         repeatRecognitionMs,
         workerInitializationMs,
