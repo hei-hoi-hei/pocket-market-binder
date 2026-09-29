@@ -173,6 +173,21 @@ describe('local scanner reference store', () => {
     );
   });
 
+  it('lists active local and account-scoped references available in IndexedDB', async () => {
+    const local = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const account = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review', ownershipScope: 'account' },
+    );
+
+    await expect(store.listActive()).resolves.toEqual([local, account]);
+  });
+
   it('loads legacy references without ownership as local without rewriting them', async () => {
     const saved = await store.saveConfirmedReference(
       confirmScannerCandidate(pikachu),

@@ -1,38 +1,73 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { AlertCircle, Camera, CheckCircle2, ImagePlus, RefreshCw, Trash2, X } from 'lucide-react';
+import { AlertCircle, Camera, CheckCircle2, ImagePlus, Loader2, RefreshCw, Trash2, X } from 'lucide-react';
 import { useImageAcquisition } from '@/hooks/useImageAcquisition';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useNav } from '@/context/NavContext';
 import { CandidateReview } from '@/components/scanner/CandidateReview';
-import type { ConfirmedScannerCandidate, ScannerIdentificationResult } from '@/services/scanner/types';
+import { identifyImageWithProviders } from '@/services/scanner/scannerOrchestration';
+import { createLocalReferenceScannerProvider } from '@/services/scanner/localReferenceMatcher';
+import type {
+  ConfirmedScannerCandidate,
+  ScannerIdentificationResult,
+} from '@/services/scanner/types';
 
-type ScannerScreenProps =
-  | {
-      reviewResult: ScannerIdentificationResult;
-      onCandidateConfirmed: (candidate: ConfirmedScannerCandidate) => void;
-    }
-  | {
-      reviewResult?: null;
-      onCandidateConfirmed?: never;
-    };
+interface ScannerScreenProps {
+  reviewResult?: ScannerIdentificationResult | null;
+  onCandidateConfirmed?: (candidate: ConfirmedScannerCandidate) => void;
+}
 
 export function ScannerScreen(props: ScannerScreenProps) {
   const { go } = useNav();
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionController = useRef<AbortController | null>(null);
   const { image, error, selectFile, clearImage, handlePreviewError } = useImageAcquisition();
   const [reviewDismissed, setReviewDismissed] = useState(false);
-  const reviewResult = props.reviewResult ?? null;
+  const [localResult, setLocalResult] = useState<ScannerIdentificationResult | null>(null);
+  const [matching, setMatching] = useState(false);
+  const reviewResult = props.reviewResult === undefined ? localResult : props.reviewResult;
 
   useEffect(() => {
     setReviewDismissed(false);
   }, [reviewResult]);
 
+  useEffect(() => () => recognitionController.current?.abort(), []);
+
   const openFilePicker = () => inputRef.current?.click();
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    recognitionController.current?.abort();
+    setLocalResult(null);
+    setMatching(false);
     selectFile(event.target.files?.[0] ?? null);
     event.target.value = '';
+  };
+
+  const handleClearImage = () => {
+    recognitionController.current?.abort();
+    setLocalResult(null);
+    setMatching(false);
+    clearImage();
+  };
+
+  const handleIdentify = async () => {
+    if (!image) return;
+    recognitionController.current?.abort();
+    const controller = new AbortController();
+    recognitionController.current = controller;
+    setMatching(true);
+    setLocalResult(null);
+    try {
+      const provider = createLocalReferenceScannerProvider();
+      const result = await identifyImageWithProviders([provider], image.file, controller.signal);
+      if (!controller.signal.aborted) setLocalResult(result);
+    } finally {
+      if (!controller.signal.aborted) setMatching(false);
+    }
+  };
+
+  const handleCandidateConfirmed = (candidate: ConfirmedScannerCandidate) => {
+    props.onCandidateConfirmed?.(candidate);
   };
 
   return (
@@ -52,7 +87,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
         }
       >
         <p className="text-sm text-leather-500">
-          Take a card photo or choose one from your device. Identification is not available yet.
+          Match against local references from previously confirmed cards. First-time cards can be found with manual catalog search.
         </p>
       </ScreenHeader>
 
@@ -104,7 +139,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
             </button>
             <button
               type="button"
-              onClick={clearImage}
+              onClick={handleClearImage}
               className="bg-parchment-200 text-fire-600 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 transition-colors"
             >
               <Trash2 className="w-4 h-4" /> Remove Picture
@@ -116,18 +151,20 @@ export function ScannerScreen(props: ScannerScreenProps) {
               <div>
                 <p className="text-sm font-bold text-leather-800">Picture ready for the scanner pipeline</p>
                 <p className="text-xs text-leather-600 mt-1">
-                  Identification is not configured yet. This image is temporary and has not been uploaded, saved, or added to your binder.
+                  Matching runs locally against saved references. This image is temporary and is not uploaded, retained, or added to your binder.
                 </p>
               </div>
             </div>
           </div>
           <button
             type="button"
-            disabled
-            className="mt-4 w-full bg-leather-300 text-leather-500 font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-2 cursor-not-allowed"
-            title="Card identification is not configured yet"
+            onClick={handleIdentify}
+            disabled={matching}
+            className="mt-4 w-full bg-leather-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-2 hover:bg-leather-800 disabled:cursor-wait disabled:opacity-70"
           >
-            <AlertCircle className="w-4 h-4" /> Identify Card (Not Available Yet)
+            {matching
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Matching Local References...</>
+              : <><AlertCircle className="w-4 h-4" /> Match Local References</>}
           </button>
         </section>
       )}
@@ -138,12 +175,13 @@ export function ScannerScreen(props: ScannerScreenProps) {
         </div>
       )}
 
-      {reviewResult && props.onCandidateConfirmed && !reviewDismissed && (
+      {reviewResult && !reviewDismissed && (
         <CandidateReview
           result={reviewResult}
-          onConfirm={props.onCandidateConfirmed}
+          onConfirm={handleCandidateConfirmed}
           onRetry={() => {
             setReviewDismissed(true);
+            setLocalResult(null);
             openFilePicker();
           }}
           onCancel={() => setReviewDismissed(true)}
