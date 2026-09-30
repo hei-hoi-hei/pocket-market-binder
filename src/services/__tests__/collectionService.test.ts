@@ -60,7 +60,14 @@ describe('collectionService', () => {
     closeSyncDatabase?.();
     closeSyncDatabase = undefined;
     await deleteSyncDatabase();
+    vi.restoreAllMocks();
   });
+
+  async function failOutboxRecording(): Promise<void> {
+    const { outboxManager } = await import('../sync/engine/outboxManager');
+    vi.spyOn(outboxManager, 'enqueue').mockRejectedValue(new Error('Outbox unavailable.'));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  }
 
   it('preserves an existing seller price locally and in the outbox when no new price is supplied', async () => {
     localStore.set('cart', [
@@ -227,6 +234,87 @@ describe('collectionService', () => {
       'Binder was updated locally, but its sync change could not be recorded.',
       expect.any(Error),
     );
+  });
+
+  it('keeps Binder quantity updates when outbox recording fails', async () => {
+    localStore.set('binder', [binderEntry('card-a', 2)]);
+    await failOutboxRecording();
+    const { setBinderQuantity } = await loadCollectionService();
+
+    await expect(setBinderQuantity('card-a', 5)).resolves.toEqual([binderEntry('card-a', 5)]);
+    expect(localStore.get('binder')).toEqual([binderEntry('card-a', 5)]);
+    expect(console.error).toHaveBeenCalledWith(
+      'Binder was updated locally, but its sync change could not be recorded.',
+      expect.any(Error),
+    );
+  });
+
+  it('keeps Binder removals when outbox recording fails', async () => {
+    localStore.set('binder', [binderEntry('card-a', 2)]);
+    await failOutboxRecording();
+    const { removeFromBinder } = await loadCollectionService();
+
+    await expect(removeFromBinder('card-a')).resolves.toEqual([]);
+    expect(localStore.get('binder')).toEqual([]);
+    expect(console.error).toHaveBeenCalledOnce();
+  });
+
+  it('persists Wishlist additions before best-effort outbox recording', async () => {
+    await failOutboxRecording();
+    const { addToWishlist, getWishlist } = await loadCollectionService();
+
+    await expect(addToWishlist('card-a')).resolves.toEqual([
+      { cardId: 'card-a', addedAt: expect.any(Number) },
+    ]);
+    await expect(getWishlist()).resolves.toEqual([
+      { cardId: 'card-a', addedAt: expect.any(Number) },
+    ]);
+    expect(console.error).toHaveBeenCalledWith(
+      'Wishlist was updated locally, but its sync change could not be recorded.',
+      expect.any(Error),
+    );
+  });
+
+  it('keeps Wishlist removals when outbox recording fails', async () => {
+    localStore.set('wishlist', [{ cardId: 'card-a', addedAt: 1 }]);
+    await failOutboxRecording();
+    const { removeFromWishlist, getWishlist } = await loadCollectionService();
+
+    await expect(removeFromWishlist('card-a')).resolves.toEqual([]);
+    await expect(getWishlist()).resolves.toEqual([]);
+    expect(console.error).toHaveBeenCalledOnce();
+  });
+
+  it('keeps Cart add, update, and removal mutations when outbox recording fails', async () => {
+    localStore.set('cart', [{ cardId: 'card-a', quantity: 1, sellerPrice: 4, addedAt: 1 }]);
+    await failOutboxRecording();
+    const { addToCart, updateCartEntry, removeFromCart, getCart } = await loadCollectionService();
+
+    await addToCart('card-a', 2, 5);
+    await expect(getCart()).resolves.toEqual([
+      { cardId: 'card-a', quantity: 3, sellerPrice: 5, addedAt: 1 },
+    ]);
+    await updateCartEntry('card-a', { sellerPrice: 7 });
+    await expect(getCart()).resolves.toEqual([
+      { cardId: 'card-a', quantity: 3, sellerPrice: 7, addedAt: 1 },
+    ]);
+    await removeFromCart('card-a');
+    await expect(getCart()).resolves.toEqual([]);
+    expect(console.error).toHaveBeenCalledTimes(3);
+  });
+
+  it('continues recording successful Wishlist mutations in the outbox', async () => {
+    const { addToWishlist } = await loadCollectionService();
+    const { outboxManager } = await import('../sync/engine/outboxManager');
+    ({ closeSyncDatabase } = await import('../sync/syncDatabase'));
+
+    await addToWishlist('card-a');
+
+    await expect(outboxManager.getNextBatch(10)).resolves.toMatchObject([{
+      store: 'wishlist',
+      recordId: 'card-a',
+      record: { data: { cardId: 'card-a' } },
+    }]);
   });
 
   it('calculates Binder value from Market References multiplied by each quantity', async () => {

@@ -11,6 +11,7 @@ import type {
 import { storage } from './storage';
 import { catalogService } from './catalogService';
 import { pricingService } from './pricingService';
+import type { SyncStore } from './sync/types/sync.types';
 
 /**
  * Collection service — binder, wishlist, and cart persistence.
@@ -24,6 +25,28 @@ const KEYS = {
   wishlist: 'wishlist',
   cart: 'cart',
 } as const;
+
+const SYNC_STORE_LABELS: Record<SyncStore, string> = {
+  binder: 'Binder',
+  wishlist: 'Wishlist',
+  cart: 'Cart',
+};
+
+async function recordOptionalSyncChange(
+  store: SyncStore,
+  recordId: string,
+  data: unknown,
+  isDeleted = false,
+): Promise<void> {
+  try {
+    await recordSyncChange(store, recordId, data, isDeleted);
+  } catch (error: unknown) {
+    console.error(
+      `${SYNC_STORE_LABELS[store]} was updated locally, but its sync change could not be recorded.`,
+      error,
+    );
+  }
+}
 
 // ── Binder ──────────────────────────────────────────────────────────────────
 
@@ -58,14 +81,10 @@ export async function addToBinder(cardId: string, qty = 1): Promise<BinderEntry[
     entries.push({ cardId, quantity: qty, addedAt: Date.now() });
   }
   await setBinder(entries);
-  try {
-    await recordSyncChange('binder', cardId, {
-      cardId,
-      quantity: entries.find((entry) => entry.cardId === cardId)?.quantity ?? qty,
-    });
-  } catch (error: unknown) {
-    console.error('Binder was updated locally, but its sync change could not be recorded.', error);
-  }
+  await recordOptionalSyncChange('binder', cardId, {
+    cardId,
+    quantity: entries.find((entry) => entry.cardId === cardId)?.quantity ?? qty,
+  });
   return entries;
 }
 
@@ -82,14 +101,14 @@ export async function setBinderQuantity(cardId: string, quantity: number): Promi
     }
   }
   await setBinder(entries);
-  await recordSyncChange('binder', cardId, { cardId, quantity });
+  await recordOptionalSyncChange('binder', cardId, { cardId, quantity });
   return entries;
 }
 
 export async function removeFromBinder(cardId: string): Promise<BinderEntry[]> {
   const entries = (await getBinder()).filter((e) => e.cardId !== cardId);
   await setBinder(entries);
-  await recordSyncChange('binder', cardId, {}, true);
+  await recordOptionalSyncChange('binder', cardId, {}, true);
   return entries;
 }
 
@@ -117,18 +136,20 @@ export async function setWishlist(entries: WishlistEntry[]): Promise<void> {
 
 export async function addToWishlist(cardId: string): Promise<WishlistEntry[]> {
   const entries = await getWishlist();
+  let added = false;
   if (!entries.some((e) => e.cardId === cardId)) {
     entries.push({ cardId, addedAt: Date.now() });
-    await recordSyncChange('wishlist', cardId, { cardId });
+    added = true;
   }
   await setWishlist(entries);
+  if (added) await recordOptionalSyncChange('wishlist', cardId, { cardId });
   return entries;
 }
 
 export async function removeFromWishlist(cardId: string): Promise<WishlistEntry[]> {
   const entries = (await getWishlist()).filter((e) => e.cardId !== cardId);
   await setWishlist(entries);
-  await recordSyncChange('wishlist', cardId, {}, true);
+  await recordOptionalSyncChange('wishlist', cardId, {}, true);
   return entries;
 }
 
@@ -155,7 +176,7 @@ export async function addToCart(cardId: string, qty = 1, sellerPrice?: number | 
     entries.push(updatedEntry);
   }
   await setCart(entries);
-  await recordSyncChange('cart', cardId, updatedEntry);
+  await recordOptionalSyncChange('cart', cardId, updatedEntry);
   return entries;
 }
 
@@ -166,14 +187,14 @@ export async function updateCartEntry(cardId: string, patch: Partial<Omit<CartEn
     Object.assign(existing, patch);
   }
   await setCart(entries);
-  if (existing) await recordSyncChange('cart', cardId, existing);
+  if (existing) await recordOptionalSyncChange('cart', cardId, existing);
   return entries;
 }
 
 export async function removeFromCart(cardId: string): Promise<CartEntry[]> {
   const entries = (await getCart()).filter((e) => e.cardId !== cardId);
   await setCart(entries);
-  await recordSyncChange('cart', cardId, {}, true);
+  await recordOptionalSyncChange('cart', cardId, {}, true);
   return entries;
 }
 
