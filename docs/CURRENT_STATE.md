@@ -29,15 +29,17 @@ This document is authoritative for the current repository state and near-term ro
 
 The authoritative V1 boundary is **Card Reference + Market Value + Acquisition Calculator**. V1 includes exact card reference, artwork/reference information, attributed market observations and normalized market value/range, local-first binder state, and the existing virtual cart as an offline acquisition-cost planner. The cart does not discover sellers or listings. Marketplace acquisition discovery (active listings, sellers/stores, asking prices, purchase links, and “find another copy”) is V2. V1 does not require a backend, login, paid APIs, or marketplace scraping.
 
-## V1 shared data and backup architecture decision
+## V1 local reference and backup boundary
 
-An online PMB backend/API is part of the V1 architecture as a shared reference-data and cache layer. It is not the owner or source of truth for a user's Binder.
+V1 uses provider adapters and local IndexedDB caches directly. A PMB backend/API
+and shared reference cache are optional future extensions, not V1 dependencies.
+They do not own or replace a user's Binder.
 
 ```text
 External Providers
 (TCGdex / pricing / artwork / future providers)
              ↓
-      PMB Backend / API
+      Optional Future Backend / API
              ↓
      Shared Reference Cache
              ↓
@@ -48,29 +50,32 @@ External Providers
              UI
 ```
 
-The backend boundary is intended to normalize provider responses, retain source/provenance and freshness/version metadata, deduplicate upstream requests, apply rate limits, serve shared cached data to multiple users, and provide a stable application-facing API. This can reduce repeated upstream requests and avoid waiting on an external provider when a usable cached response exists. Desired request paths are:
+If implemented later, a backend could normalize provider responses, retain
+source/provenance and freshness/version metadata, deduplicate upstream requests,
+apply rate limits, and serve shared cached data. Such a backend is not required
+for V1. Current request paths are:
 
 ```text
-Cold:              User → PMB → Provider → PMB → User
-Warm server cache: User → PMB → User
+Cold:              User → Provider adapter → User/device cache
 Warm device cache: User → IndexedDB → User
 ```
 
-These are target responsibilities, not implemented capabilities. Backend and database vendors are unselected; the backend is not yet built. External providers supply data but are not the application's source of truth.
+The optional backend is not implemented and no vendor is selected. External
+providers supply data but are not the application's source of truth.
 
 ### Local-first state and cache separation
 
-- **User-owned durable data:** Binder, Wishlist, Cart, quantities, notes/user metadata, and preferences remain in local IndexedDB and usable offline or during PMB/upstream outages. The backend must not become the mandatory authority for this state.
-- **Shared reference cache:** reusable catalog metadata, eligible artwork, and normalized provider/reference information may be cached by the backend and locally as appropriate.
+- **User-owned durable data:** Binder, Wishlist, Cart, quantities, notes/user metadata, and preferences remain in local IndexedDB and usable offline or during provider outages.
+- **Local reference cache:** reusable catalog metadata, eligible artwork, and normalized provider/reference information may be cached locally. A shared server cache is optional future work.
 - **Temporary/request cache:** search responses, transient provider results, short-lived price lookups, and recognition attempts/results are disposable and must not be confused with user-owned records.
 - IndexedDB collection state is durable user data, not disposable cache. Existing local reference caches remain distinct from collection records.
 - Shared artwork may only be cached/served when source terms and technical conditions permit. Provider hosting does not itself grant redistribution rights; preserve exact-printing evidence, provenance, and explicit eligible/unresolved/ineligible usage status.
 
 ### V1 backup/restore boundary
 
-Backup/restore is part of the V1 data pipeline and is independent of the shared reference cache. Backups primarily preserve user-owned data plus schema/version needed for restoration: Binder, Wishlist, Cart, quantities, notes/user metadata, and preferences. Support manual export/import, schema versioning/migration, and automatic/remote backup where feasible. A backup does not need every external image, shared reference, search result, or disposable provider response; these can be rehydrated from the shared cache or fetched again where available.
+Manual export/import is independent of reference caching. Backups primarily preserve user-owned data: Binder, Wishlist, Cart, quantities, notes/user metadata, preferences, and any schema version needed for restoration. Automatic or remote backup is optional future work and must not require a V1 backend or login. External images, reference records, and disposable provider responses can be fetched again where available.
 
-**Backend/shared cache is not user backup. IndexedDB collection state is not disposable cache.** Remote backup does not make the backend the live collection source of truth. No backend, remote backup, or new backup service is implemented by this decision. Vendor/database selection, authentication, and any separate multi-device collection-sync design remain to be decided without making local collection use dependent on them.
+**A shared cache is not user backup. IndexedDB collection state is not disposable cache.** No backend or remote backup service is implemented.
 
 ## Current baseline
 
@@ -95,9 +100,9 @@ Backup/restore is part of the V1 data pipeline and is independent of the shared 
 - **Canonical identity:** Identity types and verification service exist, but no identity provider is registered and no user-facing verification flow exists. Identity verification is not image recognition.
 - **Pricing:** Architecture is substantially present. The TCGdex adapter maps guide metrics into attributed observations; default market-value consolidation uses only `price-guide` class data. Other transaction classes require explicit selection, while most secondary providers remain stubs and practical live source coverage remains limited. Pricing remains separate from canonical `Card`.
 - **Artwork:** A provider-list resolver normalizes candidates and provenance, isolates provider failures, and selects deterministically. Exact-printing status requires evidence; candidates without exact status are not selected. Eligible usage is selectable; unresolved usage is selectable only with explicit provider compatibility; ineligible usage is always rejected. TCGdex alone is configured for unresolved-usage compatibility to preserve existing display, without a rights determination; secondary integration and artwork-specific caching are absent.
-- **PMB shared-reference backend/cache:** Accepted V1 architecture, not implemented. Vendor/database are unselected. It will normalize/cache reusable provider data and not own user collection state.
+- **Shared-reference backend/cache:** Optional future architecture extension, not implemented or required for V1.
 - **Synchronization:** Contracts, outbox, push/provider scaffolding, and migration components exist. Pulled changes, cursor persistence, conflict wiring, account lifecycle, and truthful user-facing sync state are incomplete.
-- **Backup/restore:** Manual collection export/import exists. Versioned validation/migrations, robust restore, and automatic/remote backup where feasible remain V1 work; backups are separate from disposable reference caches and collection sync.
+- **Backup/restore:** Manual collection export/import exists. Versioned validation/migrations and robust restore remain incomplete; automatic/remote backup is optional future work and is separate from reference caches and collection sync.
 - **Mobile UI:** The application is responsive/mobile-capable, but some components become squeezed or compressed at narrow widths. This is targeted UI hardening, not a reason for visual redesign.
 - **Capacitor:** Android platform project and camera acquisition foundation exist (Capacitor/Android 8.5.2, Camera 8.2.4, App 8.1.1). `appRestoredResult` recovers camera/gallery results after process recreation into transient memory. No APK build/device validation or iOS project exists. The Android photo-picker/camera flows add no camera or broad storage permission; photos are not saved by the plugin.
 
@@ -147,7 +152,7 @@ The production screen configures a local perceptual-hash matcher against user-co
 
 ### OPTIONAL / FUTURE
 
-- Multi-device collection synchronization remains optional/future scope pending a separate product decision. It is distinct from the V1 PMB reference backend/cache and V1 backup/restore; local-first collection functionality does not depend on synchronization.
+- Multi-device collection synchronization remains optional/future scope pending a separate product decision. It is distinct from optional future reference caching and backup; local-first collection functionality does not depend on synchronization.
 - Additional TCG categories.
 - Additional artwork sources and prefetching.
 - User-facing pricing refresh/source controls.
@@ -235,12 +240,12 @@ Future coding agents must preserve:
 
 ## Next implementation order
 
-1. Preserve the V1 data architecture: PMB shared reference backend/cache and a separate backup/restore pipeline; keep local collection state authoritative on-device.
+1. Preserve the V1 local-first boundary and keep Binder/Wishlist/Cart authoritative on-device; treat shared backend/cache and remote backup as optional future work.
 2. Reconcile provider/source architecture before adding providers or selecting backend/database vendors.
 3. Repair and test the TCGdex pricing adapter without changing `Card`.
 4. Select and integrate a local recognition provider only after representative OCR/preprocessing evidence supports that choice.
 5. Select a production catalog identity provider only after recognition can produce useful evidence; keep the implemented identity boundary separate from Candidate Review and collection actions.
-6. Design/implement the shared reference backend/cache and versioned backup/restore as separate V1 workstreams; do not conflate either with multi-device collection synchronization.
+6. Consider shared reference caching or remote backup only as separately scoped future work; do not conflate either with multi-device collection synchronization.
 7. Complete multi-device synchronization only if its separate product scope is explicitly confirmed.
 8. Harden narrow mobile layouts with targeted corrections.
 9. Create native projects only after the PWA baseline is stable.
