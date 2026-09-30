@@ -1,9 +1,9 @@
-import { BookOpen, Layers, Coins } from 'lucide-react';
+import { BookOpen, Layers } from 'lucide-react';
 import { useCollection } from '@/context/CollectionContext';
 import { CardGrid } from '@/components/CardGrid';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StatCard } from '@/components/StatCard';
-import { formatPrice } from '@/utils/format';
+import { CollectionValueStat } from '@/components/CollectionValueStat';
 
 export function BinderScreen() {
   const { ownedCards, stats, loading } = useCollection();
@@ -22,7 +22,7 @@ export function BinderScreen() {
         <div className="grid grid-cols-3 gap-3 mb-6 max-w-2xl">
           <StatCard label="Unique" value={stats.uniqueCards} icon={Layers} accent="text-water-500" />
           <StatCard label="Total" value={stats.totalCards} icon={BookOpen} accent="text-grass-500" />
-          <StatCard label="Value" value={formatPrice(stats.collectionValue)} icon={Coins} accent="text-gold-500" sub="Reference" />
+          <CollectionValueStat stats={stats} />
         </div>
       )}
 

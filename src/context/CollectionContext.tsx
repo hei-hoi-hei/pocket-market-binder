@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type {
   BinderEntry,
@@ -45,20 +45,39 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [ownedCards, setOwnedCards] = useState<OwnedCard[]>([]);
   const [stats, setStats] = useState<CollectionStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const statsRequest = useRef(0);
 
   const refreshAll = useCallback(async () => {
-    const [b, w, c, owned, s] = await Promise.all([
+    const requestId = ++statsRequest.current;
+    const [b, w, c, owned] = await Promise.all([
       svc.getBinder(),
       svc.getWishlist(),
       svc.getCart(),
       svc.getOwnedCards(),
-      svc.getCollectionStats(),
     ]);
+    if (requestId !== statsRequest.current) return;
+    const stats = svc.calculateCollectionStats(b, owned, w, c);
     setBinder(b);
     setWishlist(w);
     setCart(c);
     setOwnedCards(owned);
-    setStats(s);
+    setStats(stats);
+
+    void svc.getBinderMarketValue(b, owned).then((valueSummary) => {
+      if (requestId === statsRequest.current) {
+        setStats((current) => current ? { ...current, ...valueSummary } : current);
+      }
+    }).catch(() => {
+      if (requestId === statsRequest.current) {
+        setStats((current) => current ? {
+          ...current,
+          collectionValue: null,
+          pricedItems: 0,
+          unpricedItems: b.length,
+          pricingPending: false,
+        } : current);
+      }
+    });
   }, []);
 
   useEffect(() => {

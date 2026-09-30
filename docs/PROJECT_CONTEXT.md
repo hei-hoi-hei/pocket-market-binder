@@ -30,7 +30,7 @@ Active listings, sellers/stores, asking prices, and direct purchase links are V2
 - **Manual Backup/Restore:** Export/import preserves user-owned data separately from reference caches. Validated/versioned restore is incomplete; automatic/remote backup is optional future work.
 - **Operating Cost Target:** ₱0 (no paid APIs, paid databases, authentication servers, or paid hosting).
 - **Offline Resilience:** Local collection data remains available without network access. Uncached catalog cards and live external pricing require connectivity; offline completeness is not implied.
-- **Robust Pricing Engine:** Aggregates compatible market observations through a median calculation with multi-factor confidence scoring. Transaction classes remain distinct; default market value uses `price-guide` only.
+- **Pricing Engine:** Aggregates comparable market observations through a median calculation. Transaction classes remain distinct; default market value uses `price-guide` only. High-divergence observations are retained and flagged, not filtered as outliers.
 
 ## Important Constraints
 - **Zero Cost:** Must operate entirely at ₱0. Free tiers of public APIs are permitted only when their terms allow.
@@ -44,7 +44,7 @@ Active listings, sellers/stores, asking prices, and direct purchase links are V2
 - Scanner/recognition is an active product requirement and implementation track, but is not complete: browser and Android image acquisition, provider-agnostic Candidate Review, and an injectable catalog-identity boundary exist; no production recognition or catalog identity provider is selected. App routes only explicitly confirmed local-reference TCGdex catalog IDs through the existing Binder action; no pre-confirmation mutation occurs. Wishlist/Cart scanner actions remain unfinished.
 
 ## Current Overall Development Status
-- **Implemented & Verified:** Core PWA shell, responsive navigation, IndexedDB persistence, collection management (binder, wishlist, cart), TCGdex catalog search and detail views, artwork resolution, and the V1 Pricing Foundation (provider interfaces, currency normalization, median aggregation, outlier filtering, multi-factor confidence, provider isolation, and stubbed adapters).
+- **Implemented & Verified:** Core PWA shell, responsive navigation, IndexedDB persistence, collection management (binder, wishlist, cart), TCGdex catalog search and detail views, artwork resolution, and the V1 Pricing Foundation (provider interfaces, currency normalization, median aggregation, divergence reporting, provider isolation, and stubbed adapters).
 - **Partially Implemented / Unfinished:** Pricing consolidation foundation exists, but live provider coverage is limited and the TCGdex pricing response extraction needs verification. Scanner acquisition and local matching against previously confirmed references are present; recognition of unseen cards and downstream catalog resolution remain unfinished.
 - **V1 work remaining:** Catalog/pricing coverage and robust local import/restore validation remain incomplete. No V1 backend is required.
 - **Optional / Future Scope:** Multi-device collection synchronization remains optional pending a separate product decision. The local-first Binder does not depend on it.

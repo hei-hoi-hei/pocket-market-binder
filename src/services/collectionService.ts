@@ -10,6 +10,7 @@ import type {
 } from '@/types';
 import { storage } from './storage';
 import { catalogService } from './catalogService';
+import { pricingService } from './pricingService';
 
 /**
  * Collection service — binder, wishlist, and cart persistence.
@@ -184,13 +185,68 @@ export async function clearCart(): Promise<void> {
 
 const RARITIES: Rarity[] = ['common', 'uncommon', 'rare', 'holo', 'ultra', 'secret', 'other'];
 
-export async function getCollectionStats(): Promise<CollectionStats> {
-  const [owned, wishlist, cart] = await Promise.all([getOwnedCards(), getWishlist(), getCart()]);
+export interface BinderMarketValueSummary {
+  collectionValue: number | null;
+  pricedItems: number;
+  unpricedItems: number;
+  pricingPending: boolean;
+}
+
+function isValidBinderQuantity(quantity: unknown): quantity is number {
+  return typeof quantity === 'number' && Number.isSafeInteger(quantity) && quantity > 0;
+}
+
+export async function getBinderMarketValue(
+  entries: BinderEntry[],
+  ownedCards: OwnedCard[],
+): Promise<BinderMarketValueSummary> {
+  if (entries.length === 0) {
+    return { collectionValue: 0, pricedItems: 0, unpricedItems: 0, pricingPending: false };
+  }
+
+  const cardsById = new Map(ownedCards.map(({ card }) => [card.id, card]));
+  const itemValues = await Promise.all(entries.map(async (entry): Promise<number | null> => {
+    const card = cardsById.get(entry.cardId);
+    if (!card || !isValidBinderQuantity(entry.quantity)) return null;
+
+    try {
+      const { value } = await pricingService.getConsolidatedPrice(card);
+      if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+      const itemValue = value * entry.quantity;
+      return Number.isFinite(itemValue) ? itemValue : null;
+    } catch {
+      return null;
+    }
+  }));
+
+  let collectionValue = 0;
+  let pricedItems = 0;
+  for (const itemValue of itemValues) {
+    if (itemValue === null || !Number.isFinite(collectionValue + itemValue)) continue;
+    collectionValue += itemValue;
+    pricedItems += 1;
+  }
+
+  return {
+    collectionValue: pricedItems > 0 ? Math.round(collectionValue * 100) / 100 : null,
+    pricedItems,
+    unpricedItems: entries.length - pricedItems,
+    pricingPending: false,
+  };
+}
+
+export function calculateCollectionStats(
+  entries: BinderEntry[],
+  owned: OwnedCard[],
+  wishlist: WishlistEntry[],
+  cart: CartEntry[],
+): CollectionStats {
   const byRarity = {} as Record<Rarity, number>;
   for (const r of RARITIES) byRarity[r] = 0;
 
   let totalCards = 0;
   for (const { card, quantity } of owned) {
+    if (!isValidBinderQuantity(quantity)) continue;
     totalCards += quantity;
     byRarity[card.rarity] = (byRarity[card.rarity] ?? 0) + quantity;
   }
@@ -198,9 +254,23 @@ export async function getCollectionStats(): Promise<CollectionStats> {
   return {
     uniqueCards: owned.length,
     totalCards,
-    collectionValue: 0,
+    collectionValue: entries.length === 0 ? 0 : null,
+    pricedItems: 0,
+    unpricedItems: 0,
+    pricingPending: entries.length > 0,
     byRarity,
     wishlistCount: wishlist.length,
     cartCount: cart.length,
   };
+}
+
+export async function getCollectionStats(): Promise<CollectionStats> {
+  const [entries, owned, wishlist, cart] = await Promise.all([
+    getBinder(),
+    getOwnedCards(),
+    getWishlist(),
+    getCart(),
+  ]);
+  const stats = calculateCollectionStats(entries, owned, wishlist, cart);
+  return { ...stats, ...await getBinderMarketValue(entries, owned) };
 }

@@ -46,7 +46,8 @@ This document records established architectural and product decisions for Pocket
 ### 6. Calculated Market Reference (Pocket Market Reference v1)
 - **Decision:** The application calculates a normalized market reference rather than treating any single third-party provider as absolute truth.
 - **Current Status:** Implemented & Verified (`v1-median`).
-- **Rationale:** Aggregates observations across multiple providers using normalization, outlier filtering, and median calculation to provide a more reliable market reference.
+- **Current behavior:** Calculates a median from comparable normalized observations. Invalid, stale, incompatible, and unsupported-currency observations are excluded; high-divergence observations remain in the median and are reported, not filtered as outliers.
+- **Rationale:** Preserves attributable observations and reports disagreement instead of silently dropping a high value. Multiple observations are not necessarily independent providers.
 - **Consequences / Trade-offs:** Requires algorithmic tuning and maintenance.
 - **Scope:** Long-term core architecture (versioned).
 

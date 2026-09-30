@@ -87,6 +87,7 @@ Manual export/import is independent of reference caching. Backups primarily pres
 - IndexedDB persistence with isolated user/catalog/pricing key spaces.
 - Legacy `localStorage` migration.
 - Binder quantities, wishlist, and the virtual acquisition cart with local planned-cost and `price-guide` Market Reference totals/comparison; the implemented Add to Binder action transfers an exact cart-line card and quantity only after confirmation and keeps the plan.
+- Home and Binder aggregate currently available per-card Market References by quantity. Priced value is separate from coverage; unavailable prices are excluded and displayed coverage is explicit. Pricing is enriched asynchronously and does not delay Binder loading.
 - TCGdex-backed Pokémon catalog search/detail mapping and catalog caching.
 - High/low catalog artwork URL selection and UI/procedural fallback behavior where applicable.
 - Collection JSON export, merge import, and overwrite import.

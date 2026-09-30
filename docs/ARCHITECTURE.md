@@ -74,15 +74,15 @@ Keep three classes distinct: user-owned durable state; shared reusable reference
 V1 backup/restore is a separate user-data pipeline, not a copy of the PMB shared reference cache. It preserves user-owned Binder, Wishlist, Cart, quantities, notes/metadata, preferences, and a schema/version for migration. Manual export/import exists; robust versioned restore and automatic/remote backup where feasible remain planned work. Cached artwork, catalog payloads, and disposable provider responses are normally rehydratable and need not be included. Multi-device live collection sync is a separate optional decision.
 
 ## Pricing Architecture (V1 Median Engine)
-The consolidation engine and observation model exist in `pricingService.ts`, but live source coverage is limited. Several adapters are stubs and the current TCGdex extraction requires verification against the actual detailed response shape.
+The consolidation engine and observation model exist in `pricingService.ts`, but live source coverage is limited. Several adapters are stubs; TCGdex extraction is fixture-verified against documented and captured detailed response shapes.
 
 Implemented engine behavior:
 1. **Collection:** Gathers observations via `Promise.allSettled` for provider independence.
-2. **Filtering:** Removes invalid prices and observations older than `maxObservationAgeMs`.
+2. **Filtering:** Excludes invalid prices and observations older than `maxObservationAgeMs` from the current reference.
 3. **Currency Normalization:** Converts observation prices to target currency (USD) using static rates (`CURRENCY_CONVERSION_TO_USD`). Original `PriceObservation` values are never mutated.
-4. **Outlier Filtering:** For $N \ge 4$, filters out observations outside $0.4\times$ to $2.5\times$ of the preliminary median.
-5. **Median Calculation:** Computes mathematical median of filtered normalized prices.
-6. **Confidence Evaluation:** Evaluates multi-factor confidence (`high`, `medium`, `low`) based on diversity, agreement (max deviation), and freshness ratio.
+4. **Median Calculation:** Computes the mathematical median of comparable normalized prices, including high-divergence observations.
+5. **Divergence Reporting:** Reports moderate or high spread; divergent observations are retained and are not filtered from the median.
+6. **Confidence Evaluation:** Sets qualitative confidence (`high`, `medium`, `low`) from the number of comparable observations; this does not establish provider independence.
 
 The behavior above describes the **current implementation**, not a final multi-source pricing design. The architectural direction is multiple replaceable sources feeding attributable observations into an application-derived Binder estimate. Collection data remains local authority; a provider outage is an external-data problem, not a collection-data problem.
 

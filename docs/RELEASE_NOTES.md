@@ -16,7 +16,7 @@ Pocket Market Binder V1.0.0 delivers a complete, offline-first digital card coll
   - Search, energy/rarity filters, set browsing, and card detail screens.
 - **V1 Consolidation Pricing Engine:**
   - Implemented `v1-median` mathematical consolidation engine for multi-source price observations.
-  - Outlier filtering ($0.4\times$ to $2.5\times$ preliminary median), static currency normalization (USD/EUR), and multi-factor confidence scoring (`high`, `medium`, `low`).
+  - Static currency normalization and qualitative confidence reporting (`high`, `medium`, `low`). High-divergence observations are retained in the median and flagged rather than filtered as outliers.
   - Strict key-space prefix isolation between pricing observation caches and user collection records.
   - Safe adapter stubs for secondary pricing providers without exposing client-side credentials.
 - **Card Identity & Modular Verification:**

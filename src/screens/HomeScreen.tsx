@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, BookOpen, Search, Heart, ShoppingCart, TrendingUp, Layers, Coins, Camera } from 'lucide-react';
+import { Sparkles, BookOpen, Search, Heart, ShoppingCart, TrendingUp, Layers, Camera } from 'lucide-react';
 import type { Card } from '@/types';
 import { useNav } from '@/context/NavContext';
 import { useCollection } from '@/context/CollectionContext';
 import { catalogService } from '@/services/catalogService';
 import { CardThumb } from '@/components/CardThumb';
+import { CollectionValueStat } from '@/components/CollectionValueStat';
 import { StatCard } from '@/components/StatCard';
-import { formatPrice, ENERGY_STYLES } from '@/utils/format';
+import { ENERGY_STYLES } from '@/utils/format';
 
 export function HomeScreen() {
   const { go } = useNav();
@@ -70,7 +71,7 @@ export function HomeScreen() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <StatCard label="Unique" value={stats.uniqueCards} icon={Layers} accent="text-water-500" />
             <StatCard label="Total" value={stats.totalCards} icon={BookOpen} accent="text-grass-500" />
-            <StatCard label="Value" value={formatPrice(stats.collectionValue)} icon={Coins} accent="text-gold-500" sub="Reference" />
+            <CollectionValueStat stats={stats} />
             <StatCard label="Wishlist" value={stats.wishlistCount} icon={Heart} accent="text-psychic-500" />
             <StatCard label="In Cart" value={stats.cartCount} icon={ShoppingCart} accent="text-fire-500" />
           </div>

@@ -106,7 +106,10 @@ export interface OwnedCard {
 export interface CollectionStats {
   uniqueCards: number;
   totalCards: number;
-  collectionValue: number;
+  collectionValue: number | null;
+  pricedItems: number;
+  unpricedItems: number;
+  pricingPending: boolean;
   byRarity: Record<Rarity, number>;
   wishlistCount: number;
   cartCount: number;

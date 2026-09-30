@@ -1,5 +1,11 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { BinderEntry, Card, OwnedCard } from '@/types';
+
+const collectionMocks = vi.hoisted(() => ({
+  getById: vi.fn(),
+  getConsolidatedPrice: vi.fn(),
+}));
 
 let localStore: Map<string, unknown>;
 let closeSyncDatabase: (() => void) | undefined;
@@ -29,8 +35,9 @@ async function loadCollectionService() {
       remove: async (key: string) => { localStore.delete(key); },
     },
   }));
-  vi.doMock('../catalogService', () => ({
-    catalogService: { getById: vi.fn() },
+  vi.doMock('../catalogService', () => ({ catalogService: { getById: collectionMocks.getById } }));
+  vi.doMock('../pricingService', () => ({
+    pricingService: { getConsolidatedPrice: collectionMocks.getConsolidatedPrice },
   }));
 
   return import('../collectionService');
@@ -42,6 +49,8 @@ describe('collectionService', () => {
     localStore = new Map();
     failBinderWrite = false;
     failBinderRead = false;
+    collectionMocks.getById.mockReset().mockResolvedValue(null);
+    collectionMocks.getConsolidatedPrice.mockReset().mockResolvedValue({ value: null });
     closeSyncDatabase?.();
     closeSyncDatabase = undefined;
     await deleteSyncDatabase();
@@ -219,4 +228,144 @@ describe('collectionService', () => {
       expect.any(Error),
     );
   });
+
+  it('calculates Binder value from Market References multiplied by each quantity', async () => {
+    const { getBinderMarketValue } = await loadCollectionService();
+    const cards = [ownedCard('card-a', 2), ownedCard('card-b', 4)];
+    collectionMocks.getConsolidatedPrice.mockImplementation(async (card: Card) => ({
+      value: card.id === 'card-a' ? 2.5 : 3,
+    }));
+
+    await expect(getBinderMarketValue([
+      binderEntry('card-a', 2),
+      binderEntry('card-b', 4),
+    ], cards)).resolves.toEqual({
+      collectionValue: 17,
+      pricedItems: 2,
+      unpricedItems: 0,
+      pricingPending: false,
+    });
+  });
+
+  it('excludes cards without a usable Market Reference from the value', async () => {
+    const { getBinderMarketValue } = await loadCollectionService();
+    collectionMocks.getConsolidatedPrice.mockResolvedValue({ value: null });
+
+    await expect(getBinderMarketValue(
+      [binderEntry('card-a', 3)],
+      [ownedCard('card-a', 3)],
+    )).resolves.toEqual({
+      collectionValue: null,
+      pricedItems: 0,
+      unpricedItems: 1,
+      pricingPending: false,
+    });
+  });
+
+  it('reports partial pricing coverage and isolates a failed price lookup', async () => {
+    const { getBinderMarketValue } = await loadCollectionService();
+    const cards = [ownedCard('card-a', 2), ownedCard('card-b', 1), ownedCard('card-c', 3)];
+    collectionMocks.getConsolidatedPrice.mockImplementation(async (card: Card) => {
+      if (card.id === 'card-a') return { value: 4 };
+      if (card.id === 'card-b') return { value: 0 };
+      throw new Error('Pricing unavailable.');
+    });
+
+    await expect(getBinderMarketValue([
+      binderEntry('card-a', 2),
+      binderEntry('card-b', 1),
+      binderEntry('card-c', 3),
+    ], cards)).resolves.toEqual({
+      collectionValue: 8,
+      pricedItems: 1,
+      unpricedItems: 2,
+      pricingPending: false,
+    });
+  });
+
+  it('returns zero only for an empty Binder and does not request prices', async () => {
+    const { getBinderMarketValue } = await loadCollectionService();
+
+    await expect(getBinderMarketValue([], [])).resolves.toEqual({
+      collectionValue: 0,
+      pricedItems: 0,
+      unpricedItems: 0,
+      pricingPending: false,
+    });
+    expect(collectionMocks.getConsolidatedPrice).not.toHaveBeenCalled();
+  });
+
+  it('treats invalid or missing quantities and missing catalog cards as unpriced', async () => {
+    const { getBinderMarketValue } = await loadCollectionService();
+    collectionMocks.getConsolidatedPrice.mockResolvedValue({ value: 2 });
+
+    await expect(getBinderMarketValue([
+      binderEntry('priced', 2),
+      binderEntry('zero', 0),
+      binderEntry('fractional', 1.5),
+      { cardId: 'missing-quantity', addedAt: 1 } as BinderEntry,
+      binderEntry('missing-card', 3),
+    ], [ownedCard('priced', 2), ownedCard('zero'), ownedCard('fractional')])).resolves.toEqual({
+      collectionValue: 4,
+      pricedItems: 1,
+      unpricedItems: 4,
+      pricingPending: false,
+    });
+    expect(collectionMocks.getConsolidatedPrice).toHaveBeenCalledOnce();
+  });
+
+  it('keeps Binder reads and local stats independent of pricing availability', async () => {
+    const card = ownedCard('local-card', 2);
+    localStore.set('binder', [binderEntry('local-card', 2)]);
+    collectionMocks.getById.mockResolvedValue(card.card);
+    collectionMocks.getConsolidatedPrice.mockRejectedValue(new Error('Pricing unavailable.'));
+    const { calculateCollectionStats, getBinder } = await loadCollectionService();
+
+    await expect(getBinder()).resolves.toEqual([binderEntry('local-card', 2)]);
+    expect(calculateCollectionStats(
+      [binderEntry('local-card', 2)],
+      [card],
+      [],
+      [],
+    )).toMatchObject({
+      uniqueCards: 1,
+      totalCards: 2,
+      collectionValue: null,
+      pricingPending: true,
+    });
+    expect(collectionMocks.getConsolidatedPrice).not.toHaveBeenCalled();
+  });
+
+  it('returns completed stats when price lookup is unavailable', async () => {
+    const card = ownedCard('local-card', 2);
+    localStore.set('binder', [binderEntry('local-card', 2)]);
+    collectionMocks.getById.mockResolvedValue(card.card);
+    collectionMocks.getConsolidatedPrice.mockRejectedValue(new Error('Pricing unavailable.'));
+    const { getCollectionStats } = await loadCollectionService();
+
+    await expect(getCollectionStats()).resolves.toMatchObject({
+      collectionValue: null,
+      pricedItems: 0,
+      unpricedItems: 1,
+      pricingPending: false,
+    });
+  });
 });
+
+function binderEntry(cardId: string, quantity: number): BinderEntry {
+  return { cardId, quantity, addedAt: 1 };
+}
+
+function ownedCard(id: string, quantity = 1): OwnedCard {
+  return {
+    card: {
+      id,
+      name: id,
+      category: 'pokemon',
+      rarity: 'common',
+      setCode: 'test',
+      setNumber: '1',
+    },
+    quantity,
+  };
+}
