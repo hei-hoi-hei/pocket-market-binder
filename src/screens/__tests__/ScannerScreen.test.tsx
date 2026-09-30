@@ -131,12 +131,12 @@ describe('ScannerScreen interactions', () => {
     return onCandidateConfirmed;
   }
 
-  async function provideImage(fileName = 'card.png') {
+  async function provideImage(fileName = 'card.png', inputId = 'scanner-camera-input') {
     const file = new File(['local image bytes'], fileName, { type: 'image/png' });
-    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const input = container.querySelector<HTMLInputElement>(`#${inputId}`);
     if (!input) throw new Error('Scanner image input was not rendered.');
     expect(input.accept).toBe('image/*');
-    expect(input.getAttribute('capture')).toBe('environment');
+    expect(input.getAttribute('capture')).toBe(inputId === 'scanner-camera-input' ? 'environment' : null);
     Object.defineProperty(input, 'files', { configurable: true, value: [file] });
     await act(async () => {
       input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -196,6 +196,33 @@ describe('ScannerScreen interactions', () => {
     expect(candidateRadio.disabled).toBe(true);
     await act(async () => confirmButton.click());
     expect(onCandidateConfirmed).toHaveBeenCalledOnce();
+  });
+
+  it('routes a gallery-selected PWA photo through the same local matcher and confirmation flow', async () => {
+    const onCandidateConfirmed = await renderScreen();
+    const galleryInput = container.querySelector<HTMLInputElement>('#scanner-gallery-input');
+    if (!galleryInput) throw new Error('Gallery image input was not rendered.');
+    const pickerClick = vi.spyOn(galleryInput, 'click').mockImplementation(() => {});
+    const galleryButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Choose from Gallery'));
+    if (!galleryButton) throw new Error('Choose from Gallery action was not rendered.');
+    await act(async () => galleryButton.click());
+    expect(pickerClick).toHaveBeenCalledOnce();
+
+    const file = await provideImage('gallery-card.png', 'scanner-gallery-input');
+    expect(container.textContent).toContain('Selected: gallery-card.png');
+    const matchButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    if (!matchButton) throw new Error('Local matching action was not rendered for gallery photo.');
+    await act(async () => { matchButton.click(); await Promise.resolve(); });
+
+    expect(scannerMocks.identify).toHaveBeenCalledWith(
+      [scannerMocks.provider],
+      file,
+      expect.any(AbortSignal),
+    );
+    expect(container.textContent).toContain('Candidate Review');
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
   });
 
   it('offers explicit local feedback after candidate results without confirming the candidate', async () => {

@@ -30,7 +30,8 @@ interface ScannerScreenProps {
 
 export function ScannerScreen(props: ScannerScreenProps) {
   const { go } = useNav();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const recognitionController = useRef<AbortController | null>(null);
   const acquisitionRequest = useRef(0);
   const { image, error, selectFile, acceptAcquisition, clearImage, handlePreviewError } = useImageAcquisition();
@@ -78,10 +79,32 @@ export function ScannerScreen(props: ScannerScreenProps) {
     return subscribeToRestoredCameraAcquisition(applyRestoredAcquisition);
   }, [acceptAcquisition]);
 
-  const openFilePicker = () => {
+  const openCameraPicker = () => {
     acquisitionRequest.current += 1;
     setAcquiringImage(false);
-    inputRef.current?.click();
+    cameraInputRef.current?.click();
+  };
+
+  const openGalleryPicker = () => {
+    acquisitionRequest.current += 1;
+    setAcquiringImage(false);
+    galleryInputRef.current?.click();
+  };
+
+  const acquireCamera = () => {
+    if (nativeCameraAvailable) {
+      void handleNativeAcquisition(takeNativePhoto);
+    } else {
+      openCameraPicker();
+    }
+  };
+
+  const acquireGallery = () => {
+    if (nativeCameraAvailable) {
+      void handleNativeAcquisition(chooseNativePhotoFromGallery);
+    } else {
+      openGalleryPicker();
+    }
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -203,13 +226,23 @@ export function ScannerScreen(props: ScannerScreenProps) {
       </ScreenHeader>
 
       <input
-        ref={inputRef}
+        id="scanner-camera-input"
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         onChange={handleFileChange}
         className="sr-only"
-        aria-label="Choose a card picture"
+        aria-label="Take a card photo"
+      />
+      <input
+        id="scanner-gallery-input"
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="sr-only"
+        aria-label="Choose a card photo from the gallery"
       />
 
       {!image ? (
@@ -220,34 +253,31 @@ export function ScannerScreen(props: ScannerScreenProps) {
             Your browser may offer the camera, gallery, or a desktop file picker.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
-            {nativeCameraAvailable && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleNativeAcquisition(takeNativePhoto)}
-                  disabled={acquiringImage}
-                  className="bg-leather-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-leather-800 disabled:opacity-60"
-                >
-                  <Camera className="w-4 h-4" /> {acquiringImage ? 'Opening Camera...' : 'Take Photo'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleNativeAcquisition(chooseNativePhotoFromGallery)}
-                  disabled={acquiringImage}
-                  className="bg-parchment-200 text-leather-700 font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-parchment-300 disabled:opacity-60"
-                >
-                  <ImagePlus className="w-4 h-4" /> Choose from Gallery
-                </button>
-              </>
-            )}
             <button
               type="button"
-              onClick={openFilePicker}
-              className="bg-parchment-200 text-leather-700 font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-parchment-300 transition-colors active:scale-95"
+              onClick={acquireCamera}
+              disabled={acquiringImage}
+              className="bg-leather-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-leather-800 disabled:opacity-60"
             >
-              <ImagePlus className="w-4 h-4" />
-              {nativeCameraAvailable ? 'Use File Picker' : 'Take Photo / Choose Picture'}
+              <Camera className="w-4 h-4" /> {acquiringImage ? 'Opening Camera...' : 'Take Photo'}
             </button>
+            <button
+              type="button"
+              onClick={acquireGallery}
+              disabled={acquiringImage}
+              className="bg-parchment-200 text-leather-700 font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-parchment-300 disabled:opacity-60"
+            >
+              <ImagePlus className="w-4 h-4" /> Choose from Gallery
+            </button>
+            {nativeCameraAvailable && (
+              <button
+                type="button"
+                onClick={openGalleryPicker}
+                className="bg-parchment-200 text-leather-700 font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center gap-2 hover:bg-parchment-300"
+              >
+                <ImagePlus className="w-4 h-4" /> Use File Picker
+              </button>
+            )}
           </div>
         </section>
       ) : (
@@ -271,31 +301,29 @@ export function ScannerScreen(props: ScannerScreenProps) {
           <div className="flex flex-wrap gap-2 mt-4">
             <button
               type="button"
-              onClick={openFilePicker}
-              className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 transition-colors"
+              onClick={acquireCamera}
+              disabled={acquiringImage}
+              className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 transition-colors disabled:opacity-60"
             >
-              <RefreshCw className="w-4 h-4" /> Replace Picture
+              <Camera className="w-4 h-4" /> {acquiringImage ? 'Opening Camera...' : 'Take New Photo'}
             </button>
-              {nativeCameraAvailable && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleNativeAcquisition(takeNativePhoto)}
-                    disabled={acquiringImage}
-                    className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 disabled:opacity-60"
-                  >
-                    <Camera className="w-4 h-4" /> {acquiringImage ? 'Opening Camera...' : 'Take New Photo'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleNativeAcquisition(chooseNativePhotoFromGallery)}
-                    disabled={acquiringImage}
-                    className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 disabled:opacity-60"
-                  >
-                    <ImagePlus className="w-4 h-4" /> Choose from Gallery
-                  </button>
-                </>
-              )}
+            <button
+              type="button"
+              onClick={acquireGallery}
+              disabled={acquiringImage}
+              className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300 disabled:opacity-60"
+            >
+              <ImagePlus className="w-4 h-4" /> Choose from Gallery
+            </button>
+            {nativeCameraAvailable && (
+              <button
+                type="button"
+                onClick={openGalleryPicker}
+                className="bg-parchment-200 text-leather-700 font-bold text-sm px-3 py-2 rounded-lg inline-flex items-center gap-1.5 hover:bg-parchment-300"
+              >
+                <RefreshCw className="w-4 h-4" /> Use File Picker
+              </button>
+            )}
             <button
               type="button"
               onClick={handleClearImage}
@@ -358,7 +386,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
             setReviewDismissed(true);
             setLocalResult(null);
             setLocalResultDurationMs(null);
-            openFilePicker();
+            openGalleryPicker();
           }}
           onCancel={() => {
             setReviewDismissed(true);
