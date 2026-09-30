@@ -11,8 +11,11 @@ import {
 } from './scanner-benchmark-matcher';
 import {
   describeFixtureImage,
+  describeScannerBenchmarkFixture,
+  hasAmbiguousTopRank,
   assessScannerCandidates,
   parseScannerBenchmarkFixtures,
+  summarizeScannerBenchmarkResults,
   resolveFixtureImagePath,
   resolveOcrRegion,
   type NormalizedRectangle,
@@ -27,7 +30,8 @@ interface OcrEvidence {
   wholeCard: string;
 }
 
-interface BenchmarkResult extends Fixture {
+interface BenchmarkResult extends Omit<Fixture, 'id' | 'imagePath'> {
+  expectedCatalogId?: string;
   sourceUrl: string;
   imageWidth: number;
   imageHeight: number;
@@ -45,6 +49,9 @@ interface BenchmarkResult extends Fixture {
   candidates: ReturnType<typeof describeRankedCandidates>;
   correctCandidatePresent: boolean;
   correctCandidateRank: number | null;
+  correctTop1Match: boolean;
+  top1Mismatch: boolean;
+  ambiguousTopRank: boolean;
   falsePositive: boolean;
   ocrElapsedMs: number;
   repeatRecognitionMs: number;
@@ -198,8 +205,8 @@ async function main(): Promise<void> {
         fixture.id,
         ranked.map(({ card }) => card.id),
       );
-      const fixtureReport = { ...fixture };
-      delete fixtureReport.imagePath;
+      const fixtureReport = describeScannerBenchmarkFixture(fixture);
+      const candidates = describeRankedCandidates(ranked);
       results.push({
         ...fixtureReport,
         sourceUrl,
@@ -216,8 +223,9 @@ async function main(): Promise<void> {
         ocrUsable: Boolean(normalizedName || normalizedCollector),
         matchingStatus: getScannerBenchmarkMatchStatus(evidence.name, ranked.length),
         candidateCount: ranked.length,
-        candidates: describeRankedCandidates(ranked),
+        candidates,
         ...assessment,
+        ambiguousTopRank: hasAmbiguousTopRank(candidates),
         ocrElapsedMs,
         repeatRecognitionMs,
         workerInitializationMs,
@@ -236,6 +244,7 @@ async function main(): Promise<void> {
     desktopOnly: true,
     cancellation,
     controlledCases,
+    summary: summarizeScannerBenchmarkResults(results),
     results,
   };
   await writeFile(RESULTS_PATH, `${JSON.stringify(report, null, 2)}\n`);
