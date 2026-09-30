@@ -10,7 +10,11 @@ Pocket Market Binder is a mobile-first Progressive Web App (PWA) designed as a d
   2. How many copies do I own?
   3. How much are they roughly worth (market reference)?
   4. Do I already own this card when searching?
-  5. How does a prospective purchase (seller price) compare against the market reference?
+  5. What might acquiring the planned cards cost relative to available market references?
+
+V1 is Card Reference + Market Value + Acquisition Calculator. The existing
+virtual cart is for local acquisition-cost planning, not marketplace discovery.
+Active listings, sellers/stores, asking prices, and direct purchase links are V2.
 
 ## Current Technology Stack
 - **Frontend Framework:** React 18 with TypeScript

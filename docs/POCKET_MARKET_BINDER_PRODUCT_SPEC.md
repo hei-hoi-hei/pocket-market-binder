@@ -619,7 +619,7 @@ Must work offline:
 - change quantities
 - wishlist
 - shopping cart
-- seller-price calculations
+- locally entered planned acquisition-cost calculations
 - collection value
 - cached market prices
 - cached card details
@@ -720,7 +720,7 @@ Use original visual styling inspired by the physical TCG experience.
 
 ---
 
-# 30. V1 Feature Scope
+# 30. V1 Feature Scope — Card Reference, Market Value, Acquisition Calculator
 
 Required:
 
@@ -731,8 +731,8 @@ Required:
 - Quantity management
 - Card detail
 - Wishlist
-- Virtual shopping cart
-- Seller price comparison
+- Local virtual cart for exact-card acquisition planning
+- Reference-price and user-known planned-cost subtotals/totals
 - Collection value
 - Cached market references
 - Offline collection
@@ -760,6 +760,9 @@ Potential:
 
 Potential:
 
+- Active marketplace listings and acquisition discovery
+- Sellers/stores, availability, asking prices, and direct purchase links
+- Wishlist → acquisition search / “find another copy”
 - trade binder
 - purchase history
 - condition tracking
@@ -772,7 +775,7 @@ Potential:
 
 ---
 
-# 33. Explicitly Out of Scope
+# 33. Explicitly Out of Scope for V1
 
 Do NOT build:
 
@@ -785,6 +788,8 @@ Do NOT build:
 - advertisements
 - grading marketplace
 - seller accounts
+- active listings, seller/store discovery, and direct purchase links
+- marketplace scraping or checkout
 - complicated analytics
 - investment portfolio functionality
 - unnecessary authentication
@@ -877,4 +882,4 @@ Do not turn it into an investment tracker.
 
 The goal is:
 
-> A simple digital Pokémon binder that makes collecting, checking ownership, checking market references, and shopping easier.
+> A simple digital Pokémon binder that makes collecting, checking ownership, planning acquisition costs, and understanding market references easier.

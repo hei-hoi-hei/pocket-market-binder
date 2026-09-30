@@ -27,7 +27,7 @@ This document is authoritative for the current repository state and near-term ro
 
 ## V1 scope rule
 
-V1 represents the complete original Pocket Market Binder product vision. A committed V1 requirement that is not implemented is unfinished V1 work, not automatically future scope. Future agents must not downgrade missing requirements to V2 merely because they are absent from the current code. Use `DEFERRED`, `OPTIONAL / FUTURE`, or `INTENTIONALLY REMOVED` only when an explicit product decision supports that classification.
+The authoritative V1 boundary is **Card Reference + Market Value + Acquisition Calculator**. V1 includes exact card reference, artwork/reference information, attributed market observations and normalized market value/range, local-first binder state, and the existing virtual cart as an offline acquisition-cost planner. The cart does not discover sellers or listings. Marketplace acquisition discovery (active listings, sellers/stores, asking prices, purchase links, and “find another copy”) is V2. V1 does not require a backend, login, paid APIs, or marketplace scraping.
 
 ## V1 shared data and backup architecture decision
 
@@ -81,7 +81,7 @@ Backup/restore is part of the V1 data pipeline and is independent of the shared 
 - Manual catalog search and manual binder addition.
 - IndexedDB persistence with isolated user/catalog/pricing key spaces.
 - Legacy `localStorage` migration.
-- Binder quantities, wishlist, cart, and seller-price entry.
+- Binder quantities, wishlist, and the virtual cart with local planned-cost calculation.
 - TCGdex-backed Pokémon catalog search/detail mapping and catalog caching.
 - High/low catalog artwork URL selection and UI/procedural fallback behavior where applicable.
 - Collection JSON export, merge import, and overwrite import.
