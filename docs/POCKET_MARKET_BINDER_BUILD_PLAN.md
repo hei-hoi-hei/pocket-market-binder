@@ -111,7 +111,7 @@ Use a prompt similar to:
 > - view card details
 > - maintain a wishlist
 > - maintain a virtual shopping cart
-> - compare seller prices against market reference prices
+> - estimate a locally planned acquisition cost against the market reference
 > - see estimated collection value
 >
 > The application must be designed for an eventual offline-first architecture.
@@ -262,7 +262,7 @@ External services connect through adapters:
 
 The application is designed around a modular source/provider ecosystem rather than a single vendor. The eventual source registry covers catalog, pricing, artwork, and identification providers.
 
-Design principle: **multiple external sources, one canonical local truth.** External providers are replaceable; availability, coverage, terms, quality, and authentication can change. Provider failure is an external-data problem, not a collection-data problem. Binder/Wishlist/Cart remain locally owned; TCGdex remains the current catalog/identity authority. Artwork and pricing sources do not silently replace canonical card identity.
+Design principle: **multiple external sources, one canonical local truth.** External providers are replaceable; availability, coverage, terms, quality, and authentication can change. Provider failure is an external-data problem, not a collection-data problem. Binder/Wishlist/Cart remain locally owned; TCGdex is the current configured catalog provider, not the permanent identity authority. Artwork and pricing sources do not silently replace source-neutral canonical card identity.
 
 Provider behavior has two distinct forms:
 
@@ -308,18 +308,18 @@ Free providers are the default. Optional user-owned paid/private providers may b
 
 ## 7B. V1 scope and requirement lifecycle roadmap
 
-V1 represents the complete original Pocket Market Binder product vision. A committed V1 requirement that is not implemented is unfinished V1 work, not automatically future scope. The roadmap must preserve missing V1 work until it is implemented, explicitly deferred by product decision, or explicitly removed.
+V1 is **Card Reference + Market Value + Acquisition Calculator**. The local virtual cart is a planning tool, not marketplace discovery. V1 requires no backend, login, paid API, or marketplace scraping; marketplace listings/sellers/purchase links are V2.
 
 | Requirement | Status | Phase / boundary | Reason or dependency |
 |---|---|---|---|
 | IndexedDB collection source of truth | Implemented | Preserve | User data must remain local-first |
 | Manual catalog search and binder addition | Implemented | Preserve | Must remain independent of scanner |
-| PMB backend/API shared reference cache | Missing / committed V1 architecture | Backend/cache phase | Normalize and cache reusable external reference data; provenance/freshness, request deduplication, rate limiting, shared serving and stable API; backend never owns collection state; vendor/database unselected |
-| V1 backup/restore pipeline | Partial / committed V1 | Data portability phase | Manual export/import exists; add schema/versioned robust restore and automatic/remote backup where feasible; do not require disposable cache payloads |
+| PMB backend/API shared reference cache | Optional future extension | Separate future architecture decision | Could normalize/cache reusable external reference data; not required for V1 and never owns collection state |
+| Manual backup/restore | Partial | Data portability phase | Manual export/import exists; strengthen local validation/restore; automatic/remote backup is optional future work and must not require V1 backend/login |
 | Catalog provider abstraction | Partial | Provider clarification | Existing registry is not a source resolver |
 | Multiple catalog providers | Missing / committed | Provider phase | Requires resolver, priority, fallback, and enrichment decisions |
 | Pricing aggregation and cache | Partial / substantially present | Pricing phase | Engine exists; live adapters and TCGdex schema need reconciliation |
-| Multi-source pricing participation and comparable-observation policy | Future architecture direction; current engine behavior preserved | Pricing decision/implementation phase | Source counts vary per card; future statistical method is not selected |
+| Multi-source pricing participation and comparable-observation policy | Partial foundation; source coverage remains limited | Pricing decision/implementation phase | Default uses price-guide class only; explicit class selection, provenance, and comparability are enforced |
 | Artwork provider-pool boundary and deterministic candidate selection | Foundation implemented; TCGdex only | Preserve foundation; secondary-source phase remains gated | Exact-printing evidence required; usage status explicit; no secondary source approved |
 | Provider-neutral scanner recognition boundary | Implemented | Phase A | Validates local image input and normalizes unresolved provider candidates; no recognition engine is selected |
 | Explicit offline scanner fallback | Implemented | Recognition provider phase | No credentials or network access; returns truthful unavailable when no offline engine is configured; manual catalog search remains available |
@@ -415,21 +415,22 @@ Implement:
 
 ---
 
-## Milestone 5 — Shopping Cart
+## Milestone 5 — Local Acquisition-Cost Cart
 
 Implement:
 
 - add card to cart
 - quantity
 - reference price
-- seller price
+- optional user-entered planned unit cost
 - reference total
-- seller total
-- difference
-- purchase workflow
+- planned acquisition total
+- difference from reference
+- acquisition-cost / acquisition-planning workflow
 - Add Purchased Cards to Binder
 
-All calculations must work offline.
+All calculations must work offline. The cart does not discover sellers,
+marketplace listings, or purchase links.
 
 ---
 
@@ -637,9 +638,9 @@ Test each feature independently.
 - add
 - remove
 - quantity
-- seller price
+- locally entered planned acquisition cost
 - reference total
-- seller total
+- planned acquisition total
 - difference
 - purchase → binder
 
@@ -719,8 +720,8 @@ The application should not proceed to UI polish until a user can:
 7. see the card still exists
 8. add it to wishlist
 9. add another card to cart
-10. enter a seller price
-11. compare seller price with reference price
+10. enter a known planned acquisition cost
+11. compare planned cost with reference price
 12. calculate cart totals
 13. add purchased cards to binder
 14. view collection value

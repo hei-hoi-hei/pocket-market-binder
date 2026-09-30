@@ -24,9 +24,14 @@ The primary goal is to make these actions extremely easy:
 4. Track how many copies are owned.
 5. See an estimated current market reference.
 6. Maintain a wishlist.
-7. Add prospective purchases to a virtual shopping cart.
-8. Compare seller prices against the market reference.
+7. Plan prospective acquisitions in a local virtual cart.
+8. Estimate acquisition cost against available market references.
 9. Continue using the collection even without an internet connection.
+
+V1 is **Card Reference + Market Value + Acquisition Calculator**. The cart is a
+local planning tool for exact cards, quantities, reference or user-known planned
+prices, subtotals, and totals. It does not discover sellers, listings, stores,
+or purchase links. Marketplace-connected acquisition discovery is V2.
 
 The application is Pokémon-first, but the underlying architecture should avoid hard-coding Pokémon-specific assumptions wherever practical so that additional TCGs can be supported later.
 
@@ -107,7 +112,7 @@ The application should assume that the user:
 - wants to know how many copies of a card they own
 - wants to quickly search their collection
 - wants a wishlist
-- may compare cards while shopping
+- may compare a planned acquisition cost with the available market reference
 - may use the application at physical card shops
 - may not want complicated investment/portfolio features
 
@@ -154,31 +159,26 @@ The project should remain understandable and maintainable.
 
 High-level architecture:
 
-External Providers
-(catalog / pricing / artwork / future providers)
-             ↓
-      PMB Backend / API
-             ↓
-     Shared Reference Cache
-             ↓
-        User Device
-             ↓
-       Local IndexedDB
-             ↓
-              Application UI
+Application UI
+      ↓
+Provider adapters / application services ↔ Local IndexedDB cache
+      ↕
+External catalog, pricing, and artwork providers
 
 Separate backup/restore path:
-Local IndexedDB → versioned user-data backup → manual export / remote backup where feasible
+Local IndexedDB → versioned user-data backup → manual export
 
-The PMB backend is a shared reference-data/cache layer, not the owner of the user's Binder.
+V1 clients use provider adapters and local IndexedDB caches directly. A shared
+reference backend/cache is an optional future extension, not a V1 dependency or
+source of truth. External providers supply reference data; they are not the
+application's source of truth.
+V1 does not require a backend, login, paid API, or marketplace scraping.
 
-External providers supply reference data; they are not the application's source of truth. A backend/shared cache response should be preferred over waiting on an upstream provider whenever it can satisfy a request.
-
-Cold: User → PMB → Provider → PMB → User
-Warm server cache: User → PMB → User
+Cold: User → Provider → User/device cache
 Warm device cache: User → IndexedDB → User
 
-Already-cached collection/reference data must remain usable without internet, PMB backend availability, or upstream provider availability.
+Already-cached collection/reference data must remain usable without internet
+or upstream provider availability.
 
 ---
 
@@ -192,15 +192,30 @@ IndexedDB stores user-owned durable data and a local working/reference cache:
 
 Keep these categories separate. IndexedDB collection state is not disposable cache.
 
-The V1 PMB backend should support shared catalog/reference caching, eligible artwork caching, provider request deduplication/rate limiting, normalized responses, source/provenance, freshness/versioning, shared serving, and a stable client API. Shared artwork may only be cached/served when technical and legal terms permit. Provider hosting is not automatic redistribution permission; exact-printing evidence and provenance must be preserved and usage eligibility kept explicit.
+An optional future shared backend/cache could support catalog/reference caching,
+eligible artwork caching, provider request deduplication/rate limiting,
+normalized responses, provenance, freshness/versioning, and a stable client
+API. Shared artwork may only be cached/served when technical and legal terms
+permit. Provider hosting is not automatic redistribution permission;
+exact-printing evidence and provenance must be preserved and usage eligibility
+kept explicit.
 
-Backend and database vendors are not selected. The backend is not yet implemented and must not become a mandatory source of truth for collection state.
+Backend and database vendors are not selected. No backend is required for V1.
+Any future backend must not become the source of truth for collection state.
 
 ## Backup and restore
 
-Backup/restore is part of the V1 pipeline and is distinct from the shared reference cache. Backups primarily preserve Binder, Wishlist, Cart, quantities, notes/user-owned metadata, preferences, and the schema/version required for restoration and migration. V1 supports the architecture for manual export/import, schema versioning/migration, and automatic/remote backup where feasible.
+Manual export/import is distinct from the shared reference cache. Backups
+primarily preserve Binder, Wishlist, Cart, quantities, notes/user-owned
+metadata, preferences, and the schema/version required for restoration and
+migration. Automatic/remote backup is optional future work and must not make
+V1 depend on a backend or login.
 
-Backups do not need to include every cached external image, catalog record, search response, or disposable provider result; reference data can normally be obtained from the PMB shared cache or re-fetched. Manual export/import currently exists, but a complete versioned backup/restore service is not implemented. Multi-device live collection synchronization is a separate optional decision.
+Backups do not need to include every cached external image, catalog record,
+search response, or disposable provider result; reference data can be
+re-fetched where available. Manual export/import currently exists, but a
+complete versioned backup/restore service is not implemented. Multi-device
+live collection synchronization is a separate optional decision.
 ---
 
 # 9. Card Data Model
@@ -409,7 +424,7 @@ Future multi-source pipeline:
           ↓
     Cache / Display
 
-The artwork resolver now provides a provider-list boundary, candidate normalization, failure isolation, and deterministic selection. TCGdex remains the only configured production artwork provider; its exact-printing status is based on the mapped canonical TCGdex record, while usage eligibility is unresolved. TCGdex has an explicit compatibility setting that preserves existing display without making a permission determination. For other providers, unresolved usage is not selectable unless the same explicit compatibility setting is deliberately enabled; explicitly ineligible usage is always rejected. No secondary provider is approved.
+The artwork resolver now provides a provider-list boundary, candidate normalization, failure isolation, and deterministic selection. TCGdex is the current configured catalog/artwork provider; its exact-printing status is based on the mapped current catalog record, while usage eligibility is unresolved. TCGdex has an explicit compatibility setting that preserves existing display without making a permission determination. For other providers, unresolved usage is not selectable unless the same explicit compatibility setting is deliberately enabled; explicitly ineligible usage is always rejected. No secondary provider is approved.
 
 The pricing pipeline above is future design direction, not a claim that every stage is currently implemented. Preserve raw observations with source and retrieval/observation provenance. Verify exact printing/variant and comparability, including condition, grading, language, currency, and market/listing type where the source supplies those details.
 
@@ -539,10 +554,13 @@ Each cart item should support:
 - card
 - quantity
 - market reference unit price
-- seller/store price
+- optional user-known planned unit cost
 - reference total
-- seller total
-- difference
+- planned acquisition total
+- difference from the market reference
+
+The optional planned cost is entered locally; it is not fetched from sellers,
+stores, or marketplace listings. The cart has no checkout or purchase-link flow.
 
 The cart must work offline.
 

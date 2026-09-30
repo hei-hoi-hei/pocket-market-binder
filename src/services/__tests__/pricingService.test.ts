@@ -53,6 +53,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -63,6 +64,7 @@ describe('PricingService', () => {
         price: 9.50,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -73,6 +75,7 @@ describe('PricingService', () => {
         price: 10.50,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -93,6 +96,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -113,6 +117,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -123,6 +128,7 @@ describe('PricingService', () => {
         price: 9.80,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -133,6 +139,7 @@ describe('PricingService', () => {
         price: 10.20,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -152,6 +159,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -162,6 +170,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -172,6 +181,7 @@ describe('PricingService', () => {
         price: 14.00, // Median is 10.00, deviation is 4 / 10 = 40% (within 30-60%)
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -192,6 +202,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -202,6 +213,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -212,6 +224,7 @@ describe('PricingService', () => {
         price: 17.00, // Median is 10.00, deviation is 7 / 10 = 70% (above 60%)
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -232,6 +245,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -242,6 +256,7 @@ describe('PricingService', () => {
         price: 10.50,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -252,6 +267,7 @@ describe('PricingService', () => {
         price: 9.50,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -262,6 +278,7 @@ describe('PricingService', () => {
         price: 50.00, // Outlier
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -282,6 +299,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -292,6 +310,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'EUR', // 10 EUR = 10 * 1.08 = 10.8 USD
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: now,
         fetchedAt: now,
       },
@@ -313,6 +332,7 @@ describe('PricingService', () => {
         price: 10.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: freshObsTime,
         fetchedAt: now,
       },
@@ -323,6 +343,7 @@ describe('PricingService', () => {
         price: 15.00,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: staleObsTime,
         fetchedAt: now,
       },
@@ -342,6 +363,7 @@ describe('PricingService', () => {
       price: 10,
       currency: 'EUR',
       priceType: 'trend',
+      transactionType: 'price-guide',
       observedAt,
       fetchedAt: observedAt,
       metadata: { field: 'trend', providerListingId: 'cm-1' },
@@ -354,6 +376,7 @@ describe('PricingService', () => {
       price: 10,
       currency: 'USD',
       priceType: 'market',
+      transactionType: 'price-guide',
       observedAt,
       fetchedAt: observedAt,
       metadata: { field: 'marketPrice', providerListingId: 'tp-1' },
@@ -384,6 +407,7 @@ describe('PricingService', () => {
       source: 'tcgdex',
       market: 'cardmarket',
       priceType: 'trend',
+      transactionType: 'price-guide',
       currency: 'EUR',
       observedAt,
       fetchedAt: observedAt,
@@ -394,7 +418,7 @@ describe('PricingService', () => {
   it('requires the known printing variant on the displayed price path', async () => {
     const holoCard: Card = {
       ...baseCard,
-      identity: { tcgdexId: baseCard.id, variant: 'holo' },
+      identity: { providerIds: { tcgdex: [baseCard.id] }, variant: 'holo' },
     };
     const observations: PriceObservation[] = [
       {
@@ -405,6 +429,7 @@ describe('PricingService', () => {
         price: 10,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: Date.now(),
         fetchedAt: Date.now(),
         metadata: { field: 'marketPrice' },
@@ -417,6 +442,7 @@ describe('PricingService', () => {
         price: 20,
         currency: 'USD',
         priceType: 'market',
+        transactionType: 'price-guide',
         observedAt: Date.now(),
         fetchedAt: Date.now(),
         metadata: { field: 'marketPrice' },
@@ -437,6 +463,66 @@ describe('PricingService', () => {
     ]);
   });
 
+  it('preserves source-neutral transaction metadata and isolates other provider failures', async () => {
+    const observation: PriceObservation = {
+      cardId: baseCard.id,
+      source: 'regional-pricing-adapter',
+      sourceType: 'marketplace',
+      market: 'regional-market',
+      marketCountry: 'PH',
+      marketRegion: 'Central Visayas',
+      language: 'ja',
+      variant: 'firstEdition',
+      condition: 'near_mint',
+      transactionType: 'active-listing',
+      listingStatus: 'active',
+      price: 120,
+      currency: 'PHP',
+      priceType: 'market',
+      observedAt: Date.now(),
+      fetchedAt: Date.now(),
+      sourceConfidence: 'medium',
+      confidenceEvidence: 'Listing printing is matched to set and collector number.',
+      provenance: {
+        sourceUrl: 'https://market.example/listings/record-1',
+        sourceRecordId: 'record-1',
+        sourceRelationship: 'direct',
+      },
+    };
+    pricingService.clearProviders();
+    pricingService.registerProvider({
+      name: 'regional-pricing-adapter',
+      fetchPrices: vi.fn().mockResolvedValue([observation]),
+    });
+    pricingService.registerProvider({
+      name: 'offline-adapter',
+      fetchPrices: vi.fn().mockRejectedValue(new Error('Provider offline.')),
+    });
+
+    const result = await pricingService.getConsolidatedPrice(baseCard, {
+      normalization: { variant: 'firstEdition', transactionType: 'active-listing' },
+    });
+
+    expect(result.comparableObservations).toEqual([observation]);
+    expect(result.comparableObservations[0]).toMatchObject({
+      sourceType: 'marketplace',
+      transactionType: 'active-listing',
+      listingStatus: 'active',
+      marketCountry: 'PH',
+      marketRegion: 'Central Visayas',
+      language: 'ja',
+      variant: 'firstEdition',
+      condition: 'near_mint',
+      provenance: {
+        sourceUrl: 'https://market.example/listings/record-1',
+        sourceRecordId: 'record-1',
+        sourceRelationship: 'direct',
+      },
+      sourceConfidence: 'medium',
+      confidenceEvidence: 'Listing printing is matched to set and collector number.',
+    });
+  });
+
   it('does not display an all-stale cached observation as a current reference', async () => {
     const staleObservation: PriceObservation = {
       cardId: baseCard.id,
@@ -445,6 +531,7 @@ describe('PricingService', () => {
       price: 12,
       currency: 'USD',
       priceType: 'market',
+      transactionType: 'price-guide',
       observedAt: Date.now() - 10 * 24 * 60 * 60 * 1000,
       fetchedAt: Date.now(),
       metadata: { field: 'marketPrice' },

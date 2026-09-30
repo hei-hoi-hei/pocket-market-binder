@@ -6,7 +6,7 @@
 
 ## Decision baseline
 
-TCGdex remains the application's canonical catalog and identity authority. Its English set record contains 30 entries with local identifiers `001`–`030`, but reports `official: 0`. Therefore each row below is **listed by TCGdex**, not independently confirmed as an official physical printing. No image from another source is treated as the same printing based on name or visual resemblance alone.
+TCGdex is the current configured catalog source used for this bounded investigation, not the application's permanent identity authority. Its English set record contains 30 entries with local identifiers `001`–`030`, but reports `official: 0`. Therefore each row below is **listed by TCGdex**, not independently confirmed as an official physical printing. No image from another source is treated as the same printing based on name or visual resemblance alone.
 
 The eventual problem is multi-source:
 

@@ -38,6 +38,17 @@ function observationKey(obs: PriceObservation): string {
     obs.isGraded ?? false,
     obs.condition ?? 'ungraded',
     obs.language ?? '',
+    obs.sourceType ?? '',
+    obs.marketCountry ?? '',
+    obs.marketRegion ?? '',
+    obs.transactionType ?? '',
+    obs.listingStatus ?? '',
+    obs.provenance?.sourceUrl ?? '',
+    obs.provenance?.sourceRecordId ?? '',
+    obs.provenance?.sourceRelationship ?? '',
+    [...(obs.provenance?.upstreamSources ?? [])].sort(),
+    obs.sourceConfidence ?? '',
+    obs.confidenceEvidence ?? '',
     obs.price,
     obs.currency,
     obs.observedAt,
@@ -47,6 +58,7 @@ function observationKey(obs: PriceObservation): string {
 }
 
 function defaultPriceTypeIsComparable(observation: PriceObservation): boolean {
+  if (observation.transactionType !== 'price-guide') return false;
   if (observation.source !== 'tcgdex') return observation.priceType === 'market';
 
   const field = observation.metadata?.field;
@@ -79,9 +91,14 @@ function exclusionReason(
   if (options.condition && options.condition !== 'graded'
     && observation.condition && observation.condition !== options.condition) return 'condition';
   if (options.language && observation.language && observation.language !== options.language) return 'language';
-  if (options.priceType
-    ? observation.priceType !== options.priceType
-    : !defaultPriceTypeIsComparable(observation)) return 'price-type';
+  if (observation.transactionType !== (options.transactionType ?? 'price-guide')) return 'transaction-type';
+  if (options.listingStatus && observation.listingStatus !== options.listingStatus) return 'listing-status';
+  const priceTypeMatches = options.priceType
+    ? observation.priceType === options.priceType
+    : options.transactionType && options.transactionType !== 'price-guide'
+      ? observation.priceType === 'market'
+      : defaultPriceTypeIsComparable(observation);
+  if (!priceTypeMatches) return 'price-type';
 
   if (options.maxObservationAgeMs !== undefined) {
     if (!Number.isFinite(observation.observedAt) || observation.observedAt <= 0) {

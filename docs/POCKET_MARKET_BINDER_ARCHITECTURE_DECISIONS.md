@@ -29,9 +29,9 @@ When a generated implementation conflicts with this document, the conflict must 
 
 # 2. Architecture Philosophy
 
-The application follows:
+The V1 application follows:
 
-> Local-first collection → shared API-assisted reference data → independently backed-up user data
+> Local-first collection and reference data, with independent manual backup
 
 The user's collection belongs to the user and must not depend on a remote server.
 
@@ -41,14 +41,14 @@ External services provide supplemental information such as:
 - market prices
 - scanning/identification
 
-**V1 decision:** A PMB backend/API and shared reference cache are part of the V1 architecture. This supersedes the historical “no mandatory backend” decision below for reusable external reference data only. It does not make the backend the user's Binder authority or a prerequisite for local collection use. V1 also includes a distinct backup/restore pipeline for user-owned data. Neither service is implemented or vendor-selected.
+**V1 decision:** V1 is Card Reference + Market Value + Acquisition Calculator. It remains local-first and does not require a backend, login, paid API, or marketplace scraping. A PMB shared reference backend/cache is an optional future extension, not a V1 dependency. The existing virtual cart is a local acquisition-cost planner, not marketplace shopping. Manual backup/export remains separate from reference caching; automatic/remote backup is optional future work.
 
 ## Decision preservation
 
 - The source architecture is modular and must not be narrowed to TCGdex alone.
-- **Multiple external sources, one canonical local truth:** providers are replaceable sources, not permanent domain authorities. TCGdex remains the current catalog/identity authority; the user's collection remains locally owned.
+- **Multiple external sources, one canonical local truth:** providers are replaceable sources, not permanent domain authorities. TCGdex currently supplies the Pokémon catalog, but normalized card identity is source-neutral and provider IDs are namespaced metadata; the user's collection remains locally owned.
 - Provider fallback and provider enrichment are distinct behaviors.
-- Free providers are the default; private or paid providers are optional BYO-credential sources.
+- V1 must not require paid providers or credentials; any future BYO-credential sources require a separate decision.
 - Shared paid credentials, paid-access proxying, quota bypass, and mandatory paid services are prohibited.
 - Credentials remain separate from canonical cards, collections, catalog, artwork, pricing observations, and ordinary exports.
 - Pricing remains supplemental and separate from canonical `Card` identity.
@@ -66,44 +66,25 @@ Provider failure is an external-data problem, not a collection-data problem. Sou
 
 # 3. Core Architecture
 
-Preferred V1 structure:
+V1 structure:
 
-    ┌─────────────────────────────────────┐
-    │        External Providers           │
-    │  Catalog / Pricing / Artwork        │
-    └──────────────────┬──────────────────┘
-                       ▼
-    ┌─────────────────────────────────────┐
-    │         PMB Backend / API           │
-    │      Shared Reference Cache         │
-    └──────────────────┬──────────────────┘
-                       ▼
-    ┌─────────────────────────────────────┐
-    │          User Device / PWA          │
-    │       Application Service Layer     │
-    │                                     │
-    │ CollectionService / SearchService   │
-    │ WishlistService / CartService       │
-    │ PricingService / CardService        │
-    └──────────────┬──────────────┬───────┘
-                   │              │
-                   ▼              ▼
-    ┌─────────────────┐  ┌──────────────────┐
-    │    IndexedDB    │  │ PMB Backend / API│
-    │                 │  │                  │
-    │ User Data       │  │ Reference Data   │
-    │ Local Cache     │  │ Stable API       │
-    └─────────────────┘  └──────────────────┘
+    External Providers ↔ Provider Adapters / Application Services
+                                      ↕
+                          Local IndexedDB Cache
+                                      ↕
+                                   UI / PWA
 
-The PMB backend/API is the stable application-facing boundary for shared reference data; the client does not directly call upstream reference providers in the approved V1 architecture. Application services use IndexedDB for local user-owned state and local cache. The backend is not the source of truth for the user's collection.
+The client uses provider adapters and IndexedDB directly. A PMB backend/API
+and shared reference cache are possible future extensions, not V1 requirements.
+Application services use IndexedDB for local user-owned state and local cache.
 
-### V1 reference-data and backup paths
+### Optional future shared cache and local backup paths
 
 ```text
 External Providers
 (TCGdex / pricing / artwork / future providers)
              ↓
-      PMB Backend / API
+      Optional Future Backend / API
              ↓
      Shared Reference Cache
              ↓
@@ -120,12 +101,14 @@ Local IndexedDB → versioned backup → manual export / remote backup where fea
 Performance target:
 
 ```text
-Cold:              User → PMB → Provider → PMB → User
-Warm server cache: User → PMB → User
+Cold:              User → Provider adapter → User/device cache
 Warm device cache: User → IndexedDB → User
 ```
 
-The backend should normalize provider responses, retain source/provenance and freshness/version information, deduplicate upstream requests, apply rate limits, serve warm shared cache to multiple users, and provide a stable application-facing API. These are target V1 responsibilities, not implemented capabilities. Prefer a usable cache response over waiting on a slow external provider.
+If implemented later, the backend could normalize provider responses, retain
+source/provenance and freshness/version information, deduplicate upstream
+requests, apply rate limits, and serve a shared cache. These are not V1
+requirements or implemented capabilities.
 
 ---
 
@@ -164,11 +147,14 @@ Automatic/remote backup may require an explicit identity, device-linking, or aut
 
 ---
 
-# 6. Historical Decision: No Mandatory Backend (Superseded for Shared Reference Data)
+# 6. Decision: No Mandatory Backend
 
-This is a historical constraint and is superseded by the accepted V1 shared-reference backend decision in section 2. The client remains a PWA and local collection functions without the backend, but V1 includes a backend/API for shared normalized reference data and reusable caches.
+V1 directly uses provider adapters and local IndexedDB reference caches. A
+shared PMB backend/cache may be considered later, but is not required for V1.
 
-The V1 backend is not a collection database. No vendor, database, authentication design, or implementation is selected. Do not add paid dependencies/services without a separate terms and cost review.
+Any future backend is not a collection database and requires a separate
+architecture, cost, and terms review. V1 does not require login or paid
+dependencies/services.
 
 ## 6.1 Cache classes and ownership
 
@@ -182,7 +168,10 @@ Do not confuse the PMB shared cache with user backup, or IndexedDB collection st
 
 Backup/restore is a V1 data pipeline, separate from shared reference caching and multi-device collection synchronization. Backups primarily preserve user-owned Binder, Wishlist, Cart, quantities, notes/metadata, preferences, and the schema/version needed to restore or migrate them.
 
-V1 should support manual export, manual import/restore, schema versioning/migration, and automatic/remote backup where feasible. Backups need not contain all cached artwork, external catalog payloads, search results, or disposable provider responses; these can normally be restored from PMB shared cache or fetched again. The backend/shared cache is not a user backup, and a backup does not make the server authoritative for active collection state.
+V1 supports manual export and import. Automatic/remote backup is optional
+future work and must not make V1 depend on a backend or login. Backups need not
+contain all cached artwork, external catalog payloads, search results, or
+disposable provider responses; these can be fetched again where available.
 
 Manual collection export/import exists today; validated, versioned restore and automatic/remote backup are not implemented. No backup service is selected or built here.
 
@@ -199,7 +188,7 @@ The application must continue to support:
 - searching cached cards
 - wishlist
 - cart
-- seller-price calculations
+- local acquisition-cost planning calculations
 - cached market references
 
 when external services are unavailable.
@@ -243,13 +232,13 @@ The application should remain replaceable and maintainable.
 
 Pricing providers form a replaceable source pool. They supply observations, not an authoritative final price. The application derives its own Binder market estimate from observations that have been verified as comparable and retains the original observations and provenance. Approximately three or four reliable sources may be compared when available, but this is not a fixed count or minimum requirement: evidence may vary per card from several sources to one indication or no estimate.
 
-The future comparison must verify exact printing/variant and normalize relevant condition, grading, language, market/listing type, and currency dimensions where data permits. Preserve unusual observations and their sources; assess comparability before outlier treatment, and do not discard a legitimate premium merely because it is high. The future method must be transparent and deterministic. Median, trimmed mean, standard-deviation filtering, or another specific method is not selected by this design decision. Current implemented pricing behavior is described separately in the architecture/status documentation.
+Comparisons must verify exact printing/variant and normalize relevant condition, grading, language, market/listing type, and currency dimensions where data permits. Completed sales, active listings, retail asking prices, buylist offers, and price-guide/reference values are distinct transaction classes. The current default market-value calculation uses only `price-guide` observations; callers may explicitly select one other transaction class, but incompatible classes are never blended. Preserve unusual observations and their source/provenance; assess comparability before outlier treatment, and do not discard a legitimate premium merely because it is high. Preserve geography, timestamps, currency, source reference, and lineage when supplied. The current implementation's median calculation is described in the architecture/status documentation.
 
 ## 8A. Artwork Source-Pool Boundary
 
 **Implemented foundation:** The artwork resolver accepts a provider list, normalizes candidate provenance, isolates failures, and deterministically selects candidates with evidenced exact-printing verification. Eligible usage is selectable; unresolved usage requires an explicit provider compatibility setting; ineligible usage is always rejected. TCGdex is the only configured production provider and explicitly opts into unresolved-usage compatibility to preserve current display while its usage eligibility remains unresolved. This is not a rights determination. Additional provider integration and verified usage eligibility remain future work.
 
-Artwork providers supply candidate images; they do not own or replace canonical card identity. TCGdex remains the current catalog/identity authority. For each canonical identity, the future artwork resolution should establish:
+Artwork providers supply candidate images; they do not own or replace canonical card identity. TCGdex is the current configured catalog provider, not the permanent identity authority. Canonical identity remains source-neutral. For each canonical identity, the future artwork resolution should establish:
 
 1. whether the candidate is for the exact printing;
 2. whether the image is actually available;
@@ -784,9 +773,9 @@ The application should first be an excellent Pokémon binder.
 
 # 31. Decision: Collection Synchronization Is Separate from V1 Backup and Shared Cache
 
-Multi-device live collection synchronization remains a separate optional/future decision. Its conflicts, accounts, and bidirectional state are not implied by the V1 shared reference backend or the V1 backup/restore pipeline.
+Multi-device live collection synchronization remains a separate optional/future decision. Its conflicts, accounts, and bidirectional state are not implied by optional future reference caching or local manual backup.
 
-V1 backup/restore is accepted scope, including automatic/remote backup where feasible, as well as manual export/import and schema migration. This supersedes the historical statement that cloud backup itself is deferred. Backup is a versioned copy/restore path for user-owned data, not continuous synchronization.
+Manual export/import is available. Versioned/automatic/remote backup remains optional future work and must not require V1 login or backend infrastructure. Backup is a copy/restore path for user-owned data, not continuous synchronization.
 
 The implementation and remote-backup access model remain to be designed. Do not introduce authentication, sync, or a backend vendor without the relevant scoped decision.
 
@@ -900,15 +889,15 @@ Priority order:
 | PWA | ACCEPTED |
 | ₱0 operating target | ACCEPTED |
 | Local use requires no authentication | ACCEPTED; remote-backup access design remains open |
-| V1 PMB shared reference backend/cache | ACCEPTED; not implemented, vendor/database unselected; never owns collection state |
-| V1 backup/restore pipeline | ACCEPTED; manual export/import exists, complete versioned/automatic-remote pipeline unfinished |
+| PMB shared reference backend/cache | OPTIONAL FUTURE extension; not a V1 dependency |
+| Manual backup/restore | Manual export/import exists; remote/automatic backup is optional future work |
 | Provider abstraction | ACCEPTED |
 | Own market-reference calculation | ACCEPTED |
 | Cached pricing | ACCEPTED |
 | Multiple external sources, one canonical local truth | ACCEPTED; artwork provider-pool foundation implemented, generalized orchestration remains future |
 | Secondary artwork source | NOT APPROVED; bounded evidence recorded in `ARTWORK_SOURCE_INVESTIGATION.md` |
 | Scanner deferred | Historical decision; superseded by current active scanner requirement (production recognition unfinished) |
-| Cloud backup deferred | Historical decision; superseded by accepted V1 backup/restore pipeline |
+| Cloud backup deferred | Current scope: optional future work, not a V1 requirement |
 | Cloud collection sync deferred | Historical decision; multi-device sync remains separate optional/future scope |
 | Multi-TCG support deferred | ACCEPTED |
 | AI builder for scaffolding | ACCEPTED |

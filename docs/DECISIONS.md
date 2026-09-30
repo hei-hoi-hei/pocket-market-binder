@@ -17,18 +17,17 @@ This document records established architectural and product decisions for Pocket
 - **Decision:** Do not implement user accounts, logins, or authentication.
 - **Current Status:** No authentication system is selected or implemented. Local collection use must not require an account; remote-backup access design remains open.
 - **Rationale:** Local collection workflows should remain simple and available without account setup. Any future remote-backup access requirements are a separate design concern.
-- **Consequences / Trade-offs:** This decision does not remove the V1 PMB shared-reference backend/API, and it does not decide multi-device collection sync.
+- **Consequences / Trade-offs:** This decision does not decide optional future remote backup or multi-device collection sync.
 - **Scope:** V1-specific.
 
-### 3. Historical Decision: No Mandatory Backend (Superseded for Shared Reference Data)
+### 3. No Mandatory Backend in V1
 - **Historical decision:** The core application was intended to run as a static PWA without a backend server.
 - **Historical rationale:** Keeps operating costs at ₱0 and allows free static hosting (e.g., GitHub Pages).
-- **Historical provider path:** External API interactions (such as TCGdex) were expected to occur directly from the client, requiring proper CORS handling and rate-limit management. This direct-client-to-provider path is superseded for the approved V1 reference-data architecture.
-- **Current V1 decision:** External providers → PMB backend/API shared-reference layer → device/local cache → UI. The PMB backend/API is part of V1 architecture for shared reference data; IndexedDB remains authoritative for user-owned collection state. Local collection use must remain available without the backend.
-- **Current Status:** Architectural decision only; no backend implementation, vendor, hosting service, or authentication system has been selected.
+- **Current V1 decision:** V1 is Card Reference + Market Value + Acquisition Calculator. Provider adapters and local IndexedDB caches serve the application directly; a PMB backend/shared cache is optional future work. The existing virtual cart is a local acquisition-cost planner, not marketplace discovery.
+- **Current Status:** No backend is required or implemented. The V1 product does not require a backend, login, paid API, or marketplace scraping.
 - **Authority:** See [ARCHITECTURE.md](./ARCHITECTURE.md), [CURRENT_STATE.md](./CURRENT_STATE.md), and [POCKET_MARKET_BINDER_ARCHITECTURE_DECISIONS.md](./POCKET_MARKET_BINDER_ARCHITECTURE_DECISIONS.md) for the current architecture and implementation status.
-- **Consequences / Trade-offs:** The shared-reference backend is not a collection authority or a prerequisite for local collection workflows.
-- **Scope:** Historical wording superseded by the accepted V1 shared-reference architecture.
+- **Consequences / Trade-offs:** Local use remains available without a backend. A future shared cache must not become collection authority.
+- **Scope:** V1 boundary; future backend/cache requires separate approval.
 
 ### 4. External APIs Are Optional Dependencies
 - **Decision:** External APIs must never be required for basic collection functionality.

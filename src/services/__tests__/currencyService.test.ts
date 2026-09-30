@@ -25,6 +25,7 @@ function observation(overrides: Partial<PriceObservation> = {}): PriceObservatio
     price: 10,
     currency: 'USD',
     priceType: 'market',
+    transactionType: 'price-guide',
     observedAt: now,
     fetchedAt: now,
     ...overrides,

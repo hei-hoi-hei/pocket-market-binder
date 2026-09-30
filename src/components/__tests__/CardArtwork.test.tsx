@@ -15,7 +15,7 @@ const card: Card = {
   setCode: 'base1',
   setNumber: '1',
   identity: {
-    tcgdexId: 'base1-1',
+    providerIds: { tcgdex: ['base1-1'] },
     setId: 'base1',
     cardNumber: '1',
   },
@@ -27,9 +27,10 @@ function availableArtwork(imageUrl: string, source: string, role: 'primary' | 'f
   const candidate = {
     imageUrl,
     source,
-    requestedIdentity: card.identity ?? { tcgdexId: card.id },
+    requestedIdentity: card.identity ?? { providerIds: { tcgdex: [card.id] } },
     resolvedAt: 1,
     role,
+    sourceType: 'catalog-artwork' as const,
     verification,
     usageEligibility,
     unresolvedUsageAllowed: false,

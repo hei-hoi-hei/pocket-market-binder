@@ -1,13 +1,79 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import livePricingFixture from './fixtures/tcgdex-live-base1-1.json';
 import documentedPricingFixture from './fixtures/tcgdex-documented-pricing.json';
-import { extractTCGdexObservations } from '../tcgdexProvider';
+import { extractTCGdexObservations, mapTCGdexToCard, TCGdexProvider } from '../tcgdexProvider';
 
 const FETCHED_AT = Date.parse('2026-09-29T00:00:00.000Z');
 
 describe('extractTCGdexObservations', () => {
   beforeEach(() => {
     vi.spyOn(Date, 'now').mockReturnValue(FETCHED_AT);
+  });
+
+  describe('mapTCGdexToCard', () => {
+    it('keeps TCGdex IDs and artwork namespaced as catalog-provider data', () => {
+      const card = mapTCGdexToCard({
+        id: 'jp-set-042',
+        name: 'Alakazam',
+        localId: '042',
+        image: 'https://assets.tcgdex.net/ja/jp/jp-set/042',
+        set: { id: 'jp-set', name: 'Japanese Set' },
+        variants: { normal: true, reverse: true, holo: false, firstEdition: false },
+      });
+
+      expect(card.catalogArtwork).toEqual({
+        provider: 'tcgdex',
+        providerCardId: 'jp-set-042',
+        printingIdentity: {
+          setId: 'jp-set',
+          setName: 'Japanese Set',
+          cardNumber: '042',
+          name: 'Alakazam',
+          rarity: 'other',
+          variants: { normal: true, reverse: true, holo: false, firstEdition: false },
+          providerIds: { tcgdex: ['jp-set-042'] },
+        },
+        imageUrls: {
+          low: 'https://assets.tcgdex.net/ja/jp/jp-set/042/low.webp',
+          high: 'https://assets.tcgdex.net/ja/jp/jp-set/042/high.webp',
+        },
+      });
+      expect(card.identity).toMatchObject({
+        variants: { normal: true, reverse: true, holo: false, firstEdition: false },
+        providerIds: { tcgdex: ['jp-set-042'] },
+      });
+      expect(card.identity).not.toHaveProperty('tcgdexId');
+      expect(card.identity).not.toHaveProperty('imageUrl');
+    });
+  });
+
+  it('preserves source-provided printing fields on catalog search results', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify([{
+      id: 'sv3pt5-1',
+      name: 'Bulbasaur',
+      localId: '1',
+      set: { id: 'sv3pt5', name: '151' },
+      image: 'https://assets.tcgdex.net/en/sv/sv3pt5/1',
+      variants: { normal: true, reverse: true, holo: false, firstEdition: false },
+    }]), { status: 200 }));
+    const provider = new TCGdexProvider();
+
+    const [card] = await provider.searchCards('Bulbasaur');
+
+    expect(card.identity).toMatchObject({
+      name: 'Bulbasaur',
+      setId: 'sv3pt5',
+      setName: '151',
+      cardNumber: '1',
+      variants: { normal: true, reverse: true, holo: false, firstEdition: false },
+      providerIds: { tcgdex: ['sv3pt5-1'] },
+    });
+    expect(card.catalogArtwork?.printingIdentity).toMatchObject({
+      setId: 'sv3pt5',
+      cardNumber: '1',
+      variants: { normal: true, reverse: true, holo: false, firstEdition: false },
+      providerIds: { tcgdex: ['sv3pt5-1'] },
+    });
   });
 
   afterEach(() => {
@@ -21,6 +87,7 @@ describe('extractTCGdexObservations', () => {
       {
         cardId: 'base1-1',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'cardmarket',
         price: 68.73,
         currency: 'EUR',
@@ -32,6 +99,7 @@ describe('extractTCGdexObservations', () => {
       {
         cardId: 'base1-1',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'cardmarket',
         price: 7,
         currency: 'EUR',
@@ -43,6 +111,7 @@ describe('extractTCGdexObservations', () => {
       {
         cardId: 'base1-1',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'cardmarket',
         price: 42.38,
         currency: 'EUR',
@@ -55,6 +124,7 @@ describe('extractTCGdexObservations', () => {
         cardId: 'base1-1',
         variant: 'holo',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'cardmarket',
         price: 19.66,
         currency: 'EUR',
@@ -67,6 +137,7 @@ describe('extractTCGdexObservations', () => {
         cardId: 'base1-1',
         variant: 'holo',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'tcgplayer',
         price: 43.99,
         currency: 'USD',
@@ -79,6 +150,7 @@ describe('extractTCGdexObservations', () => {
         cardId: 'base1-1',
         variant: 'holo',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'tcgplayer',
         price: 64.86,
         currency: 'USD',
@@ -91,6 +163,7 @@ describe('extractTCGdexObservations', () => {
         cardId: 'base1-1',
         variant: 'holo',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'tcgplayer',
         price: 9999,
         currency: 'USD',
@@ -103,6 +176,7 @@ describe('extractTCGdexObservations', () => {
         cardId: 'base1-1',
         variant: 'holo',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'tcgplayer',
         price: 67.18,
         currency: 'USD',
@@ -115,6 +189,7 @@ describe('extractTCGdexObservations', () => {
         cardId: 'base1-1',
         variant: 'holo',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'tcgplayer',
         price: 384.99,
         currency: 'USD',
@@ -186,6 +261,7 @@ describe('extractTCGdexObservations', () => {
       {
         cardId: 'base1-1',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'cardmarket',
         price: 2.5,
         currency: 'EUR',
@@ -272,6 +348,7 @@ describe('extractTCGdexObservations', () => {
         cardId: 'base1-1',
         variant: 'normal',
         source: 'tcgdex',
+        transactionType: 'price-guide',
         market: 'tcgplayer',
         price: 4.5,
         currency: 'USD',

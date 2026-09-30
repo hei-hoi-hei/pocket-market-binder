@@ -18,7 +18,7 @@ const card: Card = {
   setCode: 'base1',
   setNumber: '1',
   identity: {
-    tcgdexId: 'base1-1',
+    providerIds: { tcgdex: ['base1-1'] },
     setId: 'base1',
     cardNumber: '1',
   },
@@ -55,9 +55,10 @@ describe('artwork resolution', () => {
       role: 'primary',
       verification: {
         status: 'exact',
-        evidence: expect.stringContaining('base1-1'),
+        evidence: expect.stringContaining('Legacy untagged image URL'),
       },
       usageEligibility: { status: 'unresolved' },
+      candidate: { resolution: 'high', sourceCardId: 'base1-1' },
       attempts: [{ source: 'tcgdex', status: 'available' }],
     });
     expect(result.status === 'available' && result.resolvedAt).toEqual(expect.any(Number));
@@ -325,9 +326,10 @@ describe('artwork resolution', () => {
       candidate: {
         imageUrl: 'https://images.example/card.webp',
         source: 'test',
-        requestedIdentity: { tcgdexId: card.id },
+        requestedIdentity: { providerIds: { tcgdex: [card.id] } },
         resolvedAt: 1,
         role: 'primary',
+        sourceType: 'catalog-artwork',
         verification: { status: 'exact', evidence: 'Set and number match.' },
         usageEligibility: { status: 'eligible', evidence: 'Usage basis recorded.' },
         unresolvedUsageAllowed: false,
@@ -354,6 +356,7 @@ describe('artwork resolution', () => {
       imageUrl: low,
       source: 'tcgdex',
       role: 'primary',
+      candidate: { resolution: 'low' },
     });
   });
 
@@ -411,7 +414,7 @@ describe('artwork resolution', () => {
       source: 'approved-secondary',
       resolve: async ({ identity }) => {
         fallbackCalls += 1;
-        expect(identity.tcgdexId).toBe(card.id);
+        expect(identity.providerIds?.tcgdex).toContain(card.id);
         return {
           status: 'available',
           imageUrl: 'https://images.example/card.webp',
@@ -443,6 +446,245 @@ describe('artwork resolution', () => {
     });
     expect(card).toEqual(originalCard);
     expect(fallbackCalls).toBe(1);
+  });
+
+  it('resolves a provider-specific artwork ID without requiring a TCGdex identity', async () => {
+    const sourceSpecificId = 'jp-set-042';
+    let receivedIdentity: unknown;
+    const provider: ArtworkProvider = {
+      source: 'japanese-artwork-source',
+      resolve: async ({ identity }) => {
+        receivedIdentity = identity;
+        return {
+          status: 'available',
+          imageUrl: 'https://images.example/jp-set-042.webp',
+          sourceCardId: sourceSpecificId,
+          sourceUrl: 'https://images.example/jp-set-042-original.webp',
+          cachedImageUrl: 'https://cache.example/art/jp-set-042.webp',
+          language: 'ja',
+          variant: 'alternate-art',
+          retrievedAt: 1_800_000_000_000,
+          confidence: 0.94,
+          provenance: {
+            attribution: 'Source image attribution.',
+          },
+          verification: { status: 'exact', evidence: 'Set and collector number match.' },
+          usageEligibility: { status: 'eligible', evidence: 'Reuse terms reviewed.' },
+          quality: { width: 1200, height: 1680, urlStability: 'verified-stable' },
+        };
+      },
+    };
+    const identity = {
+      setId: 'jp-set',
+      cardNumber: '042',
+      name: 'Alakazam',
+      language: 'ja',
+      providerIds: { japaneseArt: [sourceSpecificId] },
+    };
+    const identityOnlyCard: Card = { ...card, identity };
+    const result = await new ProviderArtworkResolver([
+      register(provider, 'primary', 0),
+    ]).resolve(identityOnlyCard, 'high');
+
+    expect(receivedIdentity).not.toHaveProperty('tcgdexId');
+    expect(result).toMatchObject({
+      status: 'available',
+      source: 'japanese-artwork-source',
+      candidate: {
+        sourceCardId: sourceSpecificId,
+        sourceType: 'catalog-artwork',
+        sourceUrl: 'https://images.example/jp-set-042-original.webp',
+        cachedImageUrl: 'https://cache.example/art/jp-set-042.webp',
+        language: 'ja',
+        variant: 'alternate-art',
+        retrievedAt: 1_800_000_000_000,
+        confidence: 0.94,
+        provenance: {
+          attribution: 'Source image attribution.',
+        },
+        quality: { width: 1200, height: 1680, urlStability: 'verified-stable' },
+      },
+    });
+  });
+
+  it('merges usable Card identity fields into a partial canonical identity without inventing provider IDs', async () => {
+      let receivedIdentity: unknown;
+      const partialCard: Card = {
+        ...card,
+        name: 'Card name from catalog',
+        setName: 'Base Set',
+        rarity: 'rare',
+        identity: { cardNumber: '1', providerIds: { example: ['source-1'] } },
+        catalogArtwork: {
+          provider: 'art-source',
+          providerCardId: 'art-source-card',
+          imageUrls: {},
+        },
+      };
+      const inspector: ArtworkProvider = {
+        source: 'identity-inspector',
+        resolve: async ({ identity }) => {
+          receivedIdentity = identity;
+          return { status: 'unavailable', reason: 'Inspection only.' };
+        },
+      };
+
+      await new ProviderArtworkResolver([register(inspector, 'primary', 0)]).resolve(partialCard, 'high');
+
+      expect(receivedIdentity).toMatchObject({
+        name: 'Card name from catalog',
+        setId: 'base1',
+        setName: 'Base Set',
+        cardNumber: '1',
+        rarity: 'rare',
+        providerIds: { example: ['source-1'], 'art-source': ['art-source-card'] },
+      });
+      expect(receivedIdentity).not.toHaveProperty('providerIds.tcgdex');
+    });
+
+  it('preserves tagged artwork printing identity and rejects metadata for a different printing', async () => {
+      const taggedCard: Card = {
+        ...card,
+        catalogArtwork: {
+          provider: 'tcgdex',
+          providerCardId: 'base1-1',
+          printingIdentity: {
+            setId: 'base1',
+            cardNumber: '1',
+            name: 'Alakazam',
+            rarity: 'rare',
+            providerIds: { tcgdex: ['base1-1'] },
+          },
+          imageUrls: { high: 'https://assets.tcgdex.net/en/base/base1/1/high.webp' },
+        },
+      };
+      const taggedResult = await artworkService.resolve(taggedCard, 'high');
+      expect(taggedResult).toMatchObject({
+        status: 'available',
+        candidate: {
+          sourceCardId: 'base1-1',
+          matchedIdentity: { setId: 'base1', cardNumber: '1', providerIds: { tcgdex: ['base1-1'] } },
+        },
+      });
+
+      const wrongPrinting: ArtworkProvider = {
+        source: 'wrong-printing',
+        resolve: async () => ({
+          status: 'available',
+          imageUrl: 'https://images.example/wrong-printing.webp',
+          matchedIdentity: {
+            setId: 'base1',
+            cardNumber: '99',
+            name: 'Alakazam',
+            variants: { normal: false },
+            providerIds: { tcgdex: ['unrelated-tcgdex-record'] },
+          },
+          verification: { status: 'exact', evidence: 'Provider reported an exact printing.' },
+          usageEligibility: { status: 'eligible', evidence: 'Usage reviewed.' },
+        }),
+      };
+      const exactPrintingRequest: Card = {
+        ...card,
+        variants: { normal: true },
+        identity: { ...card.identity!, variants: { normal: true } },
+      };
+      const rejected = await new ProviderArtworkResolver([
+        register(wrongPrinting, 'primary', 0),
+      ]).resolve(exactPrintingRequest, 'high');
+
+      expect(rejected).toMatchObject({
+        status: 'unavailable',
+        candidates: [{
+          matchedIdentity: { cardNumber: '99' },
+          verification: { status: 'rejected', evidence: expect.stringContaining('variants.normal') },
+        }],
+      });
+    });
+
+  it('does not attribute untagged legacy images to unrelated artwork providers', async () => {
+      let receivedInput: unknown;
+      const nonCatalogProvider: ArtworkProvider = {
+        source: 'secondary-artwork',
+        resolve: async (input) => {
+          receivedInput = input;
+          return { status: 'unavailable', reason: 'No secondary image.' };
+        },
+      };
+
+      await new ProviderArtworkResolver([
+        register(nonCatalogProvider, 'primary', 0),
+      ]).resolve({
+        ...card,
+        imageUrlHigh: 'https://images.example/legacy-high.webp',
+      }, 'high');
+
+      expect(receivedInput).toMatchObject({ catalogArtwork: undefined });
+    });
+
+  it('normalizes legacy TCGdex identity IDs into provider-namespaced metadata', async () => {
+    const legacyIdentity = Object.assign({}, card.identity, {
+      tcgdexId: card.id,
+      imageUrl: 'https://assets.tcgdex.net/en/base/base1/1/high.webp',
+    });
+    const legacyCard: Card = { ...card, identity: legacyIdentity };
+    let receivedIdentity: unknown;
+    const provider: ArtworkProvider = {
+      source: 'identity-inspector',
+      resolve: async ({ identity }) => {
+        receivedIdentity = identity;
+        return { status: 'unavailable', reason: 'Inspection only.' };
+      },
+    };
+
+    await new ProviderArtworkResolver([
+      register(provider, 'primary', 0),
+    ]).resolve(legacyCard, 'low');
+
+    expect(receivedIdentity).not.toHaveProperty('tcgdexId');
+    expect(receivedIdentity).not.toHaveProperty('imageUrl');
+    expect(receivedIdentity).toMatchObject({ providerIds: { tcgdex: [card.id] } });
+    expect(legacyCard.identity).toHaveProperty('tcgdexId', card.id);
+  });
+
+  it('keeps user-photo inputs outside provider artwork results', async () => {
+    let capturedInput: unknown;
+    const photoCandidate: ArtworkProvider = {
+      source: 'invalid-photo-source',
+      resolve: async (input) => {
+        capturedInput = input;
+        return {
+          status: 'available',
+          imageUrl: 'https://images.example/user-photo.webp',
+          sourceType: 'user-photo',
+          verification: { status: 'exact', evidence: 'Not a provider catalog record.' },
+          usageEligibility: { status: 'eligible', evidence: 'User-uploaded.' },
+        };
+      },
+    };
+    const catalogCandidate: ArtworkProvider = {
+      source: 'catalog-source',
+      resolve: async () => ({
+        status: 'available',
+        imageUrl: 'https://images.example/catalog-art.webp',
+        verification: { status: 'exact', evidence: 'Exact printing verified.' },
+        usageEligibility: { status: 'eligible', evidence: 'Display permission reviewed.' },
+      }),
+    };
+    const result = await new ProviderArtworkResolver([
+      register(photoCandidate, 'primary', 0),
+      register(catalogCandidate, 'fallback', 1),
+    ]).resolve(card, 'low');
+
+    expect(result).toMatchObject({
+      status: 'available',
+      source: 'catalog-source',
+      attempts: [
+        { source: 'invalid-photo-source', status: 'malformed' },
+        { source: 'catalog-source', status: 'available' },
+      ],
+    });
+    expect(capturedInput).not.toHaveProperty('photo');
+    expect(capturedInput).not.toHaveProperty('image');
   });
 
   it('isolates nested provider IDs from provider mutation and candidate provenance', async () => {
@@ -533,7 +775,7 @@ describe('artwork resolution', () => {
     expect(lowerPriorityCalls).toBe(0);
     expect(result.status === 'available' && result.candidates[0]).toMatchObject({
       sourceCardId: 'source-456',
-      requestedIdentity: { tcgdexId: card.id },
+      requestedIdentity: { providerIds: { tcgdex: [card.id] } },
       quality: { width: 800, height: 1120, urlStability: 'verified-stable' },
     });
   });

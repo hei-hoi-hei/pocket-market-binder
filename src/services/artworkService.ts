@@ -1,9 +1,14 @@
-import type { CanonicalCardIdentity, Card } from '@/types';
+import type { CanonicalCardIdentity, Card, CatalogArtworkReference } from '@/types';
 
 export type ArtworkQuality = 'low' | 'high';
 export type ArtworkRole = 'primary' | 'fallback';
 export type ArtworkVerificationStatus = 'exact' | 'partial' | 'unresolved' | 'rejected';
 export type ArtworkUsageStatus = 'eligible' | 'unresolved' | 'ineligible';
+export type ArtworkSourceType = 'catalog-artwork';
+
+export interface ArtworkProvenance {
+  attribution?: string;
+}
 
 export interface ArtworkVerification {
   status: ArtworkVerificationStatus;
@@ -25,15 +30,22 @@ export interface ArtworkProviderInput {
   identity: CanonicalCardIdentity;
   quality: ArtworkQuality;
   excludedImageUrls: string[];
-  imageUrls: {
-    low?: string;
-    high?: string;
-  };
+  catalogArtwork?: CatalogArtworkReference;
 }
 
 export interface ArtworkProviderCandidate {
   imageUrl: string;
   sourceCardId?: string;
+  matchedIdentity?: CanonicalCardIdentity;
+  sourceUrl?: string;
+  cachedImageUrl?: string;
+  sourceType?: ArtworkSourceType;
+  resolution?: ArtworkQuality;
+  language?: string;
+  variant?: string;
+  retrievedAt?: number;
+  confidence?: number;
+  provenance?: ArtworkProvenance;
   verification?: ArtworkVerification;
   usageEligibility?: ArtworkUsageEligibility;
   quality?: ArtworkQualityInfo;
@@ -61,6 +73,7 @@ export interface ArtworkCandidate extends ArtworkProviderCandidate {
   requestedIdentity: CanonicalCardIdentity;
   resolvedAt: number;
   role: ArtworkRole;
+  sourceType: ArtworkSourceType;
   verification: ArtworkVerification;
   usageEligibility: ArtworkUsageEligibility;
   unresolvedUsageAllowed: boolean;
@@ -113,24 +126,135 @@ export interface ArtworkResolver {
 }
 
 function canonicalIdentity(card: Card): CanonicalCardIdentity {
-  return card.identity ?? {
-    tcgdexId: card.id,
-    setId: card.setCode,
-    setName: card.setName,
-    cardNumber: card.setNumber,
-    name: card.name,
-    rarity: card.rarity,
+  const identity = card.identity ?? {};
+  const usable = (value: string | undefined): string | undefined =>
+    typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  const provider = usable(card.catalogArtwork?.provider);
+  const providerCardId = usable(card.catalogArtwork?.providerCardId);
+  const providerIds = identity.providerIds ? { ...identity.providerIds } : {};
+  if (provider && providerCardId) {
+    const ids = providerIds[provider] ?? [];
+    providerIds[provider] = ids.includes(providerCardId) ? [...ids] : [...ids, providerCardId];
+  }
+  return {
+    ...identity,
+    setId: usable(identity.setId) ?? usable(card.setCode),
+    setName: usable(identity.setName) ?? usable(card.setName),
+    cardNumber: usable(identity.cardNumber) ?? usable(card.setNumber),
+    name: usable(identity.name) ?? usable(card.name),
+    printing: usable(identity.printing),
+    variant: usable(identity.variant),
+    language: usable(identity.language),
+    rarity: identity.rarity ?? card.rarity,
+    variants: identity.variants ?? (card.variants ? { ...card.variants } : undefined),
+    providerIds: Object.keys(providerIds).length > 0 ? providerIds : undefined,
   };
 }
 
 function copyIdentity(identity: CanonicalCardIdentity): CanonicalCardIdentity {
-  return {
+  const legacyTcgdexId = Reflect.get(identity, 'tcgdexId');
+  const copied: CanonicalCardIdentity = {
     ...identity,
+    variants: identity.variants ? { ...identity.variants } : undefined,
     providerIds: identity.providerIds
       ? Object.fromEntries(
           Object.entries(identity.providerIds).map(([provider, ids]) => [provider, ids ? [...ids] : undefined]),
         )
       : undefined,
+  };
+  Reflect.deleteProperty(copied, 'tcgdexId');
+  Reflect.deleteProperty(copied, 'imageUrl');
+  if (typeof legacyTcgdexId === 'string' && legacyTcgdexId.trim()) {
+    const tcgdexIds = copied.providerIds?.tcgdex ?? [];
+    if (!tcgdexIds.includes(legacyTcgdexId.trim())) {
+      copied.providerIds = {
+        ...copied.providerIds,
+        tcgdex: [...tcgdexIds, legacyTcgdexId.trim()],
+      };
+    }
+
+  }
+  return copied;
+}
+
+function conflictingIdentityFields(
+  requested: CanonicalCardIdentity,
+  matched: CanonicalCardIdentity,
+): string[] {
+  const fields: Array<keyof CanonicalCardIdentity> = [
+    'setId',
+    'setName',
+    'cardNumber',
+    'name',
+    'printing',
+    'variant',
+    'language',
+    'rarity',
+  ];
+  const fieldConflicts = fields.filter((field) => {
+    const requestedValue = requested[field];
+    const matchedValue = matched[field];
+    return typeof requestedValue === 'string' && requestedValue.trim()
+      && typeof matchedValue === 'string' && matchedValue.trim()
+      && requestedValue.trim().toLocaleLowerCase() !== matchedValue.trim().toLocaleLowerCase();
+  }).map(String).concat(
+    requested.variants && matched.variants
+      ? (Object.keys(requested.variants) as Array<keyof NonNullable<CanonicalCardIdentity['variants']>>)
+        .filter((variant) => requested.variants?.[variant] !== undefined
+          && matched.variants?.[variant] !== undefined
+          && requested.variants[variant] !== matched.variants[variant])
+        .map((variant) => `variants.${variant}`)
+      : [],
+  );
+  const providerIdConflicts = Object.entries(requested.providerIds ?? {})
+    .flatMap(([provider, requestedIds]) => {
+      const matchedIds = matched.providerIds?.[provider];
+      if (!requestedIds?.length || !matchedIds?.length
+        || requestedIds.some((id) => matchedIds.includes(id))) return [];
+      return [`providerIds.${provider}`];
+    });
+  return [...fieldConflicts, ...providerIdConflicts];
+}
+
+function normalizeMatchedIdentity(value: unknown): CanonicalCardIdentity | null {
+  if (!isRecord(value)) return null;
+  const textFields = ['setId', 'setName', 'cardNumber', 'name', 'printing', 'variant', 'language'] as const;
+  for (const field of textFields) {
+    if (value[field] !== undefined && (typeof value[field] !== 'string' || !value[field].trim())) return null;
+  }
+  const rarities = ['common', 'uncommon', 'rare', 'holo', 'ultra', 'secret', 'other'];
+  if (value.rarity !== undefined && !rarities.includes(value.rarity as string)) return null;
+
+  let variants: CanonicalCardIdentity['variants'];
+  if (value.variants !== undefined) {
+    if (!isRecord(value.variants)
+      || Object.values(value.variants).some((enabled) => typeof enabled !== 'boolean')) return null;
+    variants = {
+      normal: value.variants.normal as boolean | undefined,
+      reverse: value.variants.reverse as boolean | undefined,
+      holo: value.variants.holo as boolean | undefined,
+      firstEdition: value.variants.firstEdition as boolean | undefined,
+    };
+  }
+
+  let providerIds: CanonicalCardIdentity['providerIds'];
+  if (value.providerIds !== undefined) {
+    if (!isRecord(value.providerIds)
+      || Object.values(value.providerIds).some((ids) =>
+        ids !== undefined && (!Array.isArray(ids)
+          || ids.some((id) => typeof id !== 'string' || !id.trim())))) return null;
+    providerIds = Object.fromEntries(
+      Object.entries(value.providerIds).map(([provider, ids]) => [
+        provider,
+        ids === undefined ? undefined : [...ids as string[]],
+      ]),
+    );
+  }
+  return {
+    ...Object.fromEntries(textFields.map((field) => [field, value[field]])),
+    rarity: value.rarity as CanonicalCardIdentity['rarity'],
+    variants,
+    providerIds,
   };
 }
 
@@ -194,6 +318,19 @@ function normalizeQuality(value: unknown): ArtworkQualityInfo | undefined | null
   };
 }
 
+function normalizeOptionalText(value: unknown): string | undefined | null {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  return value.trim();
+}
+
+function normalizeProvenance(value: unknown): ArtworkProvenance | undefined | null {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) return null;
+  const attribution = normalizeOptionalText(value.attribution);
+  return attribution === null ? null : { ...(attribution ? { attribution } : {}) };
+}
+
 function normalizeCandidate(
   value: unknown,
   provider: ArtworkProvider,
@@ -213,21 +350,59 @@ function normalizeCandidate(
     && (typeof value.sourceCardId !== 'string' || !value.sourceCardId.trim())) {
     return null;
   }
+  const sourceUrl = normalizeOptionalText(value.sourceUrl);
+  const cachedImageUrl = normalizeOptionalText(value.cachedImageUrl);
+  const language = normalizeOptionalText(value.language);
+  const variant = normalizeOptionalText(value.variant);
+  const provenance = normalizeProvenance(value.provenance);
+  if (sourceUrl === null || cachedImageUrl === null || language === null || variant === null
+    || provenance === null
+    || (sourceUrl !== undefined && !isUsableArtworkUrl(sourceUrl))
+    || (cachedImageUrl !== undefined && !isUsableArtworkUrl(cachedImageUrl))
+    || (value.sourceType !== undefined && value.sourceType !== 'catalog-artwork')
+    || (value.resolution !== undefined && value.resolution !== 'low' && value.resolution !== 'high')
+    || (value.retrievedAt !== undefined
+      && (typeof value.retrievedAt !== 'number' || !Number.isFinite(value.retrievedAt) || value.retrievedAt <= 0))
+    || (value.confidence !== undefined
+      && (typeof value.confidence !== 'number' || !Number.isFinite(value.confidence)
+        || value.confidence < 0 || value.confidence > 1))) {
+    return null;
+  }
 
   const verification = normalizeVerification(value.verification);
   const usageEligibility = normalizeUsageEligibility(value.usageEligibility);
   const quality = normalizeQuality(value.quality);
   if (!verification || !usageEligibility || quality === null) return null;
+  const matchedIdentity = value.matchedIdentity === undefined
+    ? undefined
+    : normalizeMatchedIdentity(value.matchedIdentity);
+  if (matchedIdentity === null) return null;
+  const identityConflicts = matchedIdentity
+    ? conflictingIdentityFields(requestedIdentity, matchedIdentity)
+    : [];
+  const finalVerification = identityConflicts.length > 0
+    ? { status: 'rejected' as const, evidence: `Artwork printing metadata conflicts for ${identityConflicts.join(', ')}.` }
+    : verification;
 
   return {
     imageUrl: value.imageUrl,
     sourceCardId: value.sourceCardId as string | undefined,
+    sourceUrl,
+    cachedImageUrl,
+    sourceType: 'catalog-artwork',
+    resolution: value.resolution as ArtworkQuality | undefined,
+    language,
+    variant,
+    retrievedAt: value.retrievedAt as number | undefined,
+    confidence: value.confidence as number | undefined,
+    provenance,
+    matchedIdentity,
     source: provider.source.trim(),
     requestedIdentity: copyIdentity(requestedIdentity),
     resolvedAt,
     role,
     unresolvedUsageAllowed,
-    verification,
+    verification: finalVerification,
     usageEligibility,
     quality,
   };
@@ -364,7 +539,17 @@ export class ProviderArtworkResolver implements ArtworkResolver {
         identity: copyIdentity(identity),
         quality,
         excludedImageUrls: [...excludedImageUrls],
-        imageUrls: { low: card.imageUrlLow, high: card.imageUrlHigh },
+        catalogArtwork: card.catalogArtwork ?? (
+          provider.source === 'tcgdex' && (card.imageUrlLow || card.imageUrlHigh)
+            ? {
+                provider: 'tcgdex',
+                compatibility: 'legacy-current-catalog',
+                providerCardId: identity.providerIds?.tcgdex?.[0] ?? card.id,
+                printingIdentity: copyIdentity(identity),
+                imageUrls: { low: card.imageUrlLow, high: card.imageUrlHigh },
+              }
+            : undefined
+        ),
       });
 
       if (!isRecord(result) || typeof result.status !== 'string') {
@@ -448,14 +633,22 @@ class TCGdexArtworkProvider implements ArtworkProvider {
   readonly source = 'tcgdex';
   readonly allowUnresolvedUsage = true;
 
-  async resolve({ identity, imageUrls, quality, excludedImageUrls }: ArtworkProviderInput): Promise<ArtworkProviderResult> {
+  async resolve({ identity, catalogArtwork, quality, excludedImageUrls }: ArtworkProviderInput): Promise<ArtworkProviderResult> {
+    if (!catalogArtwork) {
+      return { status: 'unavailable', reason: 'TCGdex has no artwork URL for this card.' };
+    }
+    if (catalogArtwork.provider !== this.source) {
+      return { status: 'unavailable', reason: 'TCGdex catalog artwork is not available for this card.' };
+    }
+    const { imageUrls } = catalogArtwork;
     const preferred = quality === 'high'
-      ? [imageUrls.high, imageUrls.low]
-      : [imageUrls.low, imageUrls.high];
-    const candidates = preferred.filter((url): url is string => Boolean(url?.trim()));
+      ? [{ url: imageUrls.high, resolution: 'high' as const }, { url: imageUrls.low, resolution: 'low' as const }]
+      : [{ url: imageUrls.low, resolution: 'low' as const }, { url: imageUrls.high, resolution: 'high' as const }];
+    const candidates = preferred.filter(({ url }) => Boolean(url?.trim()));
     let foundMalformedUrl = false;
     let foundPlaceholderUrl = false;
-    for (const imageUrl of candidates) {
+    for (const { url: imageUrl, resolution } of candidates) {
+      if (!imageUrl) continue;
       if (excludedImageUrls.includes(imageUrl)) continue;
       if (!isUsableArtworkUrl(imageUrl)) {
         foundMalformedUrl = true;
@@ -468,9 +661,19 @@ class TCGdexArtworkProvider implements ArtworkProvider {
       return {
         status: 'available',
         imageUrl,
+        sourceUrl: imageUrl,
+        sourceCardId: catalogArtwork.providerCardId,
+        matchedIdentity: catalogArtwork.printingIdentity,
+        resolution,
+        language: identity.language,
+        variant: identity.variant,
         verification: {
           status: 'exact',
-          evidence: `Artwork URL is mapped from the TCGdex catalog record for ${identity.tcgdexId}.`,
+          evidence: catalogArtwork.compatibility === 'legacy-current-catalog'
+            ? 'Legacy untagged image URL retained as artwork for the current catalog record.'
+            : catalogArtwork.providerCardId
+              ? `Artwork URL is mapped from the TCGdex catalog record ${catalogArtwork.providerCardId}.`
+              : 'Artwork URL is mapped from the TCGdex catalog record for the requested card.',
         },
         usageEligibility: { status: 'unresolved' },
       };
@@ -479,7 +682,7 @@ class TCGdexArtworkProvider implements ArtworkProvider {
     if (candidates.length === 0) {
       return { status: 'unavailable', reason: 'TCGdex has no artwork URL for this card.' };
     }
-    if (candidates.every((imageUrl) => excludedImageUrls.includes(imageUrl))) {
+    if (candidates.every(({ url }) => url !== undefined && excludedImageUrls.includes(url))) {
       return { status: 'unavailable', reason: 'All TCGdex artwork URLs failed to load in the current view.' };
     }
     if (foundMalformedUrl) {

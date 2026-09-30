@@ -9,6 +9,8 @@ export type PriceExclusionReason =
   | 'graded'
   | 'condition'
   | 'language'
+  | 'transaction-type'
+  | 'listing-status'
   | 'price-type'
   | 'stale'
   | 'invalid-observed-at'

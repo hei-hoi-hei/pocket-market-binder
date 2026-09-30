@@ -9,6 +9,7 @@ import type {
 describe('ConsolidationEngine', () => {
   const baseObs: Omit<PriceObservation, 'price' | 'currency' | 'source' | 'market' | 'observedAt' | 'fetchedAt' | 'priceType'> = {
     cardId: 'test-card',
+    transactionType: 'price-guide',
   };
 
   const MOCK_SOURCE: PricingProviderName = 'pkmnprices';
@@ -24,6 +25,7 @@ describe('ConsolidationEngine', () => {
       priceType: 'market',
       observedAt: currentTime,
       fetchedAt: currentTime,
+      transactionType: 'price-guide',
       ...overrides,
     };
   }
@@ -68,6 +70,115 @@ describe('ConsolidationEngine', () => {
     expect(result.comparableObservations).toEqual([matching]);
     expect(result.observations).toEqual([matching, otherCard]);
     expect(result.excludedObservations).toEqual([{ observation: otherCard, reason: 'card-identity' }]);
+  });
+
+  test('keeps transaction classes separate by default and permits an explicitly selected class', () => {
+    const guide = observation({ price: 10, transactionType: 'price-guide' });
+    const completedSale = observation({
+      source: 'sales-source',
+      price: 100,
+      transactionType: 'completed-sale',
+    });
+    const activeListing = observation({
+      source: 'listing-source',
+      price: 200,
+      transactionType: 'active-listing',
+    });
+    const unknownClass = observation({
+      source: 'unclassified-source',
+      price: 300,
+      transactionType: undefined,
+    });
+
+    const defaultReference = consolidatePrices([guide, completedSale, activeListing, unknownClass]);
+    const requestedSales = consolidatePrices([guide, completedSale, activeListing, unknownClass], 'USD', {
+      transactionType: 'completed-sale',
+    });
+
+    expect(defaultReference.value).toBe(10);
+    expect(defaultReference.comparableObservations).toEqual([guide]);
+    expect(defaultReference.excludedObservations).toEqual([
+      { observation: completedSale, reason: 'transaction-type' },
+      { observation: activeListing, reason: 'transaction-type' },
+      { observation: unknownClass, reason: 'transaction-type' },
+    ]);
+    expect(requestedSales.value).toBe(100);
+    expect(requestedSales.comparableObservations).toEqual([completedSale]);
+    expect(requestedSales.excludedObservations).toEqual([
+      { observation: guide, reason: 'transaction-type' },
+      { observation: activeListing, reason: 'transaction-type' },
+      { observation: unknownClass, reason: 'transaction-type' },
+    ]);
+  });
+
+  test('preserves source class, transaction, market, and provenance metadata through normalization', () => {
+    const evidence = observation({
+      source: 'regional-market-provider',
+      sourceType: 'marketplace',
+      market: 'regional-card-market',
+      marketCountry: 'PH',
+      marketRegion: 'Central Visayas',
+      language: 'ja',
+      variant: 'firstEdition',
+      condition: 'near_mint',
+      transactionType: 'completed-sale',
+      listingStatus: 'sold',
+      sourceConfidence: 'medium',
+      confidenceEvidence: 'Exact printing inferred from listing title and set metadata.',
+      provenance: {
+        sourceUrl: 'https://market.example/sales/record-1',
+        sourceRecordId: 'record-1',
+        sourceRelationship: 'aggregated',
+        upstreamSources: ['regional-auction-market'],
+      },
+    });
+    const activeListing = observation({
+      ...evidence,
+      transactionType: 'active-listing',
+      listingStatus: 'active',
+    });
+    const endedSale = observation({
+      ...evidence,
+      listingStatus: 'ended',
+    });
+    expect(classifyComparableObservations(
+      [evidence, activeListing, endedSale],
+      { variant: 'firstEdition', transactionType: 'completed-sale' },
+    ).comparableObservations)
+      .toEqual([evidence, endedSale]);
+    const result = consolidatePrices([evidence, activeListing, endedSale], 'USD', {
+      cardId: 'test-card',
+      variant: 'firstEdition',
+      transactionType: 'completed-sale',
+      listingStatus: 'sold',
+      now: currentTime,
+      maxObservationAgeMs: 60_000,
+    });
+
+    expect(result.comparableObservations).toEqual([evidence]);
+    expect(result.excludedObservations).toEqual([
+      { observation: activeListing, reason: 'transaction-type' },
+      { observation: endedSale, reason: 'listing-status' },
+    ]);
+    expect(result.comparableObservations[0]).toMatchObject({
+      source: 'regional-market-provider',
+      sourceType: 'marketplace',
+      transactionType: 'completed-sale',
+      listingStatus: 'sold',
+      marketCountry: 'PH',
+      marketRegion: 'Central Visayas',
+      language: 'ja',
+      variant: 'firstEdition',
+      condition: 'near_mint',
+      provenance: {
+        sourceUrl: 'https://market.example/sales/record-1',
+        sourceRecordId: 'record-1',
+        sourceRelationship: 'aggregated',
+        upstreamSources: ['regional-auction-market'],
+      },
+      sourceConfidence: 'medium',
+      confidenceEvidence: 'Exact printing inferred from listing title and set metadata.',
+    });
   });
 
   test('accepts normal and untagged observations but excludes explicitly different variants by default', () => {

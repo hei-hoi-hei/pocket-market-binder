@@ -1,7 +1,7 @@
 # Architecture
 
 ## Current Application Architecture
-The current application follows a clean layered architecture separating UI components, React state context, application services, IndexedDB, and external APIs. The V1 target adds the PMB shared-reference API/cache between external providers and device clients; this target backend is not yet implemented:
+The current application follows a clean layered architecture separating UI components, React state context, application services, IndexedDB, and external APIs. V1 is local-first and does not require a PMB backend:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -24,7 +24,7 @@ The current application follows a clean layered architecture separating UI compo
                │                              │
                ▼                              ▼
 ┌─────────────────────────────┐┌──────────────────────────────┐
-│          IndexedDB          ││       PMB Backend / API      │
+│          IndexedDB          ││ Optional Future Backend/API │
 │  (user state + local cache) ││   (shared reference cache)   │
 └─────────────────────────────└──────────────────────────────┘
                                       ↑
@@ -32,15 +32,16 @@ The current application follows a clean layered architecture separating UI compo
                          (TCGdex / pricing / artwork)
 ```
 
-Target request paths:
+Request paths:
 
 ```text
-Cold:              User → PMB → Provider → PMB → User
-Warm server cache: User → PMB → User
+Cold:              User → Provider adapter → User/device cache
 Warm device cache: User → IndexedDB → User
 ```
 
-The PMB backend is a shared data/cache layer, not the owner of Binder/Wishlist/Cart. Its V1 responsibilities are provider-response normalization, source/provenance and freshness/versioning, request deduplication, rate limiting, shared-cache serving, and a stable client-facing API. This should avoid repeating upstream work and avoid waiting on slow providers when a cache entry can satisfy the request.
+A shared reference backend/cache is an optional future extension, not a V1
+requirement. If implemented later, it must remain distinct from locally owned
+Binder/Wishlist/Cart state.
 
 ## Major Modules and Responsibilities
 - `src/components/`: Reusable UI elements (cards, grids, stat displays, steppers, navigation).
@@ -85,6 +86,11 @@ Implemented engine behavior:
 
 The behavior above describes the **current implementation**, not a final multi-source pricing design. The architectural direction is multiple replaceable sources feeding attributable observations into an application-derived Binder estimate. Collection data remains local authority; a provider outage is an external-data problem, not a collection-data problem.
 
+Default market-value consolidation uses only `price-guide` observations. Other
+transaction classes (completed sales, active listings, retail asking prices,
+and buylist offers) are excluded unless the caller explicitly selects that
+single class; incompatible classes are never blended by default.
+
 ### Source pools and canonical local truth
 
 External providers are interchangeable sources, not permanent architectural authorities. A provider may be unavailable, rate-limited, discontinued, change its API or terms, require credentials, or lack a particular printing. Where a domain supports it, the application should be able to consider alternative sources without invalidating local collection state.
@@ -120,9 +126,12 @@ The artwork resolver implements this provider-pool boundary. The pricing source-
 **Collection and identity boundaries**
 
 - Binder, Wishlist, and Cart remain locally owned collection state.
-- The application maintains canonical card identity; TCGdex remains the current catalog/identity authority.
+- The application maintains normalized card identity. TCGdex supplies the current Pokémon catalog records, but its provider ID is namespaced metadata and is not required by the normalized identity contract.
+- Canonical identity preserves available set, card number, name, printing/variant, language, rarity, and namespaced provider IDs; partial identity is completed only from fields present on the originating `Card`.
 - Artwork and pricing providers supply external candidates or observations and must not silently replace canonical identity.
 - A provider failure must not prevent local collection access or mutation.
+
+See [SOURCE_UNIVERSE.md](./SOURCE_UNIVERSE.md) for the candidate-source audit, integration status, source independence cautions, and provider selection criteria.
 
 **Implemented artwork source-pool foundation**
 
@@ -132,17 +141,17 @@ TCGdex remains the sole configured production artwork provider. Its URLs are ass
 
 **Additional artwork source selection**
 
-Secondary artwork providers receive the already-known canonical card identity and operate only as artwork lookups; they do not replace or duplicate the catalog provider. Additional providers require evidence for exact printing and, by default, explicit eligible usage/display status. An unresolved usage status is not selectable for a provider unless the provider is explicitly configured to allow unresolved-usage compatibility. Quality and stability metadata are retained but do not reorder provider priority. Preserve provider/source identity, requested canonical identity, source card ID where available, evidence, URL, quality, and the resolver timestamp without representing it as provider retrieval time. If no candidate can be selected, retain the generated UI placeholder; never guess a different printing.
+Secondary artwork providers receive the already-known canonical card identity and operate only as artwork lookups; they do not replace or duplicate the catalog provider, and their lookup IDs need not be TCGdex IDs. TCGdex URLs are carried as a source-tagged catalog-artwork reference rather than as an identity field. Additional providers require evidence for exact printing and, by default, explicit eligible usage/display status. An unresolved usage status is not selectable for a provider unless the provider is explicitly configured to allow unresolved-usage compatibility. Quality and stability metadata are retained but do not reorder provider priority. Preserve provider/source identity, requested canonical identity, source card ID where available, evidence, URL, quality, and any provider-supplied retrieval timestamp separately from the resolver timestamp. Catalog artwork is distinct from recognition/reference images and user photographs. If no candidate can be selected, retain the generated UI placeholder; never guess a different printing.
 
 No secondary artwork source is approved or integrated. The bounded evidence for `30th-c-001` through `30th-c-030` is recorded in [ARTWORK_SOURCE_INVESTIGATION.md](./ARTWORK_SOURCE_INVESTIGATION.md); its findings do not establish artwork rights.
 
 **Future pricing source participation**
 
-Pricing sources supply observations, not the application's final market estimate. The design should be able to compare approximately three or four reliable sources when available, without requiring an exact provider count. Participation can vary per card and observation availability. Four or three comparable observations may support a multi-source estimate; two indicate reduced evidence; one is a single-source indication, not a statistically robust average; zero means no current estimate.
+Pricing sources supply attributable observations, not the application's final market estimate. The observation contract can represent source class, country/region, language, variant, condition, transaction type, listing status, source confidence, and lineage where known. The default market-value calculation accepts only `price-guide` observations; callers may explicitly select one other transaction class, and cross-class consolidation is not supported. One provider's multiple market fields or copied/aggregated data must not automatically count as independent evidence. Future source participation may vary by card and observation availability; source independence is not redesigned here.
 
 Before consolidation, verify exact printing and variant and normalize comparable dimensions such as condition, grading, language, market/listing type, and currency where data permits. Retain raw observations and source provenance. Outlier treatment must be transparent and deterministic, consider comparability first, preserve unusual observations, and not discard a legitimate premium solely because it is high.
 
-The future consolidation methodology is not selected by this source-pool direction. The current implementation's median and outlier behavior above remains the verified code status until a separate pricing implementation decision changes it. Useful future provenance includes source/provider, source identity, observed price, currency, condition, variant/printing, market/listing type, source reference, and retrieval/observation timestamps.
+The current implementation's median and outlier behavior remains the verified code status. Useful provenance includes source/provider, source identity, observed price, currency, condition, variant/printing, market/listing type, source reference, and retrieval/observation timestamps.
 
 ## Offline & Local-First Behavior
 - User collection data is stored locally and local collection actions do not depend on provider connectivity.

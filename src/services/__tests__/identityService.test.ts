@@ -54,7 +54,7 @@ describe('IdentityService', () => {
     imageUrlHigh: 'https://images.tcgdex.net/en/sv/sv3pt5/1/high.webp',
     attacks: [{ name: 'Leech Seed' }],
     identity: {
-      tcgdexId: 'sv3pt5-1',
+      providerIds: { tcgdex: ['sv3pt5-1'] },
       name: 'Bulbasaur',
       cardNumber: '1',
     },

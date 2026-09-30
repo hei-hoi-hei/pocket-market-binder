@@ -19,33 +19,38 @@ export interface CardAttack {
   text?: string;
 }
 
+export interface CatalogArtworkReference {
+  provider: string;
+  providerCardId?: string;
+  compatibility?: 'legacy-current-catalog';
+  printingIdentity?: CanonicalCardIdentity;
+  imageUrls: {
+    low?: string;
+    high?: string;
+  };
+}
+
 /** 
  * Provider-agnostic canonical card identity.
- * TCGdex remains the authoritative catalog, but other providers
- * can be mapped to this identity.
+ * Provider-specific IDs are optional metadata; canonical printing fields
+ * remain usable when a provider has no TCGdex identifier.
  */
 export interface CanonicalCardIdentity {
-  tcgdexId: string;
   setId?: string;
   setName?: string;
   cardNumber?: string;
   name?: string;
+  printing?: string;
   variant?: string;
   language?: string;
   rarity?: Rarity;
-  imageUrl?: string;
-
-  providerIds?: {
-    tcgplayer?: string[];
-    cardmarket?: string[];
-    cardtrader?: string[];
-    [provider: string]: string[] | undefined;
-  };
+  variants?: CardVariants;
+  providerIds?: Record<string, string[] | undefined>;
 }
 
 /** Provider-agnostic normalized Card model. */
 export interface Card {
-  id: string; // This corresponds to tcgdexId
+  id: string; // Current catalog record key; the production catalog is TCGdex.
   name: string;
   category: CardCategory;
   types?: string[];
@@ -53,6 +58,8 @@ export interface Card {
   setCode: string;
   setName?: string;
   setNumber: string;
+  catalogArtwork?: CatalogArtworkReference;
+  /** Legacy catalog-image slots retained for stored and existing catalog records. */
   imageUrlLow?: string;
   imageUrlHigh?: string;
   hp?: number;

@@ -1,4 +1,4 @@
-import type { Card, CardCategory, Rarity } from '@/types';
+import type { Card, CardCategory, CardVariants, Rarity } from '@/types';
 import type { PriceObservation, PricingProviderName } from './pricingProvider';
 
 export interface CatalogProvider {
@@ -25,9 +25,20 @@ function normalizeCategory(category?: string): CardCategory {
   return 'pokemon';
 }
 
+function normalizeVariants(value: unknown): CardVariants | undefined {
+  if (!isRecord(value)) return undefined;
+  return {
+    normal: Boolean(value.normal),
+    reverse: Boolean(value.reverse),
+    holo: Boolean(value.holo),
+    firstEdition: Boolean(value.firstEdition),
+  };
+}
+
 export function mapTCGdexToCard(raw: any): Card {
   const lowImg = raw.image ? `${raw.image}/low.webp` : undefined;
   const highImg = raw.image ? `${raw.image}/high.webp` : undefined;
+  const variants = normalizeVariants(raw.variants);
 
   const card: Card = {
     id: raw.id,
@@ -38,6 +49,20 @@ export function mapTCGdexToCard(raw: any): Card {
     setCode: raw.set?.id || (typeof raw.id === 'string' ? raw.id.split('-')[0] : ''),
     setName: raw.set?.name,
     setNumber: String(raw.localId || ''),
+    catalogArtwork: {
+      provider: 'tcgdex',
+      providerCardId: raw.id,
+      printingIdentity: {
+        setId: raw.set?.id || (typeof raw.id === 'string' ? raw.id.split('-')[0] : undefined),
+        setName: raw.set?.name,
+        cardNumber: String(raw.localId || ''),
+        name: raw.name,
+        rarity: normalizeRarity(raw.rarity),
+        variants,
+        providerIds: { tcgdex: [raw.id] },
+      },
+      imageUrls: { low: lowImg, high: highImg },
+    },
     imageUrlLow: lowImg,
     imageUrlHigh: highImg,
     hp: typeof raw.hp === 'number' ? raw.hp : undefined,
@@ -52,25 +77,17 @@ export function mapTCGdexToCard(raw: any): Card {
         }))
       : undefined,
     flavor: raw.description,
-    variants: raw.variants
-      ? {
-          normal: Boolean(raw.variants.normal),
-          reverse: Boolean(raw.variants.reverse),
-          holo: Boolean(raw.variants.holo),
-          firstEdition: Boolean(raw.variants.firstEdition),
-        }
-      : undefined,
+    variants,
   };
 
   card.identity = {
-    tcgdexId: card.id,
     setId: card.setCode,
     setName: card.setName,
     cardNumber: card.setNumber,
     name: card.name,
     rarity: card.rarity,
-    imageUrl: card.imageUrlHigh || card.imageUrlLow,
-    providerIds: {}, // To be populated by secondary sources
+    variants: card.variants,
+    providerIds: { tcgdex: [card.id] },
   };
 
   return card;
@@ -158,6 +175,7 @@ export function extractTCGdexObservations(cardId: string, data: unknown): PriceO
       ...(variant ? { variant } : {}),
       source: 'tcgdex',
       market,
+      transactionType: 'price-guide',
       price,
       currency: marketData.currency,
       priceType,
@@ -216,16 +234,47 @@ export class TCGdexProvider implements CatalogProvider {
       const list = await res.json();
       if (!Array.isArray(list)) return [];
 
-      return list.slice(0, 30).map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        category: 'pokemon' as CardCategory,
-        rarity: 'other' as Rarity,
-        setCode: item.id.split('-')[0] || '',
-        setNumber: String(item.localId || ''),
-        imageUrlLow: item.image ? `${item.image}/low.webp` : undefined,
-        imageUrlHigh: item.image ? `${item.image}/high.webp` : undefined,
-      }));
+      return list.slice(0, 30).map((item: any) => {
+        const variants = normalizeVariants(item.variants);
+        return {
+          id: item.id,
+          name: item.name,
+          category: 'pokemon' as CardCategory,
+          rarity: 'other' as Rarity,
+          setCode: item.set?.id || item.id.split('-')[0] || '',
+          setName: item.set?.name,
+          setNumber: String(item.localId || ''),
+          catalogArtwork: {
+            provider: 'tcgdex',
+            providerCardId: item.id,
+            printingIdentity: {
+              setId: item.set?.id || item.id.split('-')[0] || undefined,
+              setName: item.set?.name,
+              cardNumber: String(item.localId || ''),
+              name: item.name,
+              rarity: 'other',
+              variants,
+              providerIds: { tcgdex: [item.id] },
+            },
+            imageUrls: {
+              low: item.image ? `${item.image}/low.webp` : undefined,
+              high: item.image ? `${item.image}/high.webp` : undefined,
+            },
+          },
+          identity: {
+            setId: item.set?.id || item.id.split('-')[0] || undefined,
+            setName: item.set?.name,
+            cardNumber: String(item.localId || ''),
+            name: item.name,
+            rarity: 'other',
+            variants,
+            providerIds: { tcgdex: [item.id] },
+          },
+          variants,
+          imageUrlLow: item.image ? `${item.image}/low.webp` : undefined,
+          imageUrlHigh: item.image ? `${item.image}/high.webp` : undefined,
+        };
+      });
     } catch {
       return [];
     }

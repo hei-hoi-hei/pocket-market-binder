@@ -98,15 +98,15 @@ describe('Caching & Isolation Foundation', () => {
       name: 'justtcg',
       isSecondary: false,
       fetchPrices: async () => [
-        { cardId: 'sv3pt5-1', source: 'justtcg', market: 'tcgplayer', price: 10, currency: 'USD', priceType: 'market', observedAt: Date.now(), fetchedAt: Date.now() },
-        { cardId: 'sv3pt5-1', source: 'justtcg', market: 'cardmarket', price: 10, currency: 'USD', priceType: 'market', observedAt: Date.now(), fetchedAt: Date.now() },
-        { cardId: 'sv3pt5-1', source: 'justtcg', market: 'cardtrader', price: 20, currency: 'USD', priceType: 'market', observedAt: Date.now(), fetchedAt: Date.now() },
+        { cardId: 'sv3pt5-1', source: 'justtcg', market: 'tcgplayer', price: 10, currency: 'USD', priceType: 'market', transactionType: 'price-guide', observedAt: Date.now(), fetchedAt: Date.now() },
+        { cardId: 'sv3pt5-1', source: 'justtcg', market: 'cardmarket', price: 10, currency: 'USD', priceType: 'market', transactionType: 'price-guide', observedAt: Date.now(), fetchedAt: Date.now() },
+        { cardId: 'sv3pt5-1', source: 'justtcg', market: 'cardtrader', price: 20, currency: 'USD', priceType: 'market', transactionType: 'price-guide', observedAt: Date.now(), fetchedAt: Date.now() },
       ],
     };
 
     // Secondary provider
     const secondaryProvider = new MockSecondaryPriceProvider([
-      { cardId: 'sv3pt5-1', source: 'tickermint', market: 'tcgplayer', price: 11, currency: 'USD', priceType: 'market', observedAt: Date.now(), fetchedAt: Date.now() },
+      { cardId: 'sv3pt5-1', source: 'tickermint', market: 'tcgplayer', price: 11, currency: 'USD', priceType: 'market', transactionType: 'price-guide', observedAt: Date.now(), fetchedAt: Date.now() },
     ]);
 
     pricingService.registerProvider(primaryProvider);
