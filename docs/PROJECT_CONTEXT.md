@@ -37,10 +37,10 @@ Pocket Market Binder is a mobile-first Progressive Web App (PWA) designed as a d
 - Not a commercial marketplace or trading platform.
 - Not an official Pokémon product or affiliate.
 - Not an investment portfolio tracker or financial advisory tool.
-- Scanner/recognition is an active product requirement and implementation track, but is not complete: browser image acquisition, provider-agnostic Candidate Review, and an injectable catalog-identity boundary exist; no production recognition or catalog identity provider is selected, and collection integration is unfinished. Identity resolution accepts only a confirmed candidate and does not mutate collection state.
+- Scanner/recognition is an active product requirement and implementation track, but is not complete: browser and Android image acquisition, provider-agnostic Candidate Review, and an injectable catalog-identity boundary exist; no production recognition or catalog identity provider is selected. App routes only explicitly confirmed local-reference TCGdex catalog IDs through the existing Binder action; no pre-confirmation mutation occurs. Wishlist/Cart scanner actions remain unfinished.
 
 ## Current Overall Development Status
 - **Implemented & Verified:** Core PWA shell, responsive navigation, IndexedDB persistence, collection management (binder, wishlist, cart), TCGdex catalog search and detail views, artwork resolution, and the V1 Pricing Foundation (provider interfaces, currency normalization, median aggregation, outlier filtering, multi-factor confidence, provider isolation, and stubbed adapters).
-- **Partially Implemented / Unfinished:** Pricing consolidation foundation exists, but live provider coverage is limited and the TCGdex pricing response extraction needs verification. Scanner acquisition is present; recognition and downstream stages remain unfinished.
+- **Partially Implemented / Unfinished:** Pricing consolidation foundation exists, but live provider coverage is limited and the TCGdex pricing response extraction needs verification. Scanner acquisition and local matching against previously confirmed references are present; recognition of unseen cards and downstream catalog resolution remain unfinished.
 - **V1 work remaining:** PMB shared reference backend/cache and robust backup/restore pipeline are not implemented.
 - **Optional / Future Scope:** Multi-device collection synchronization remains optional pending a separate product decision. The local-first Binder does not depend on it.

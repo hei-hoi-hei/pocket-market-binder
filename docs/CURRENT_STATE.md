@@ -103,14 +103,14 @@ Backup/restore is part of the V1 data pipeline and is independent of the shared 
 
 ### PARTIAL — ACTIVE PRODUCT TRACK
 
-- Scanner/recognition is an active product requirement and implementation track. Browser file input (`accept="image/*"`, `capture="environment"`) remains available; on mobile web, `capture` is a picker hint. Android Capacitor adds camera capture and gallery selection through a source-neutral Blob acquisition result and temporary preview. Camera results delivered after Android process recreation are routed through that same acquisition boundary; previous source images are not persisted/restored. Both paths feed the same local descriptor/reference matcher; raw photos are not uploaded or stored in IndexedDB. Candidate Review and explicit confirmation remain required, with no automatic collection mutation. The provider-neutral recognition service still has no production recognition engine; the offline provider returns unavailable.
-- The isolated development benchmark currently evaluates Tesseract English OCR plus TCGdex text matching; it is not a provider comparison or production recognizer. Its local-photo manifests support capture-condition/card-characteristic labels, pixel dimensions, and per-image crop metadata. No representative real card photographs/results are present in the repository; private photos must be supplied locally and excluded from Git. See [SCANNER_BENCHMARK.md](./SCANNER_BENCHMARK.md) for the provider-neutral evaluation contract and evidence gate. No production provider has been selected.
+- Scanner/recognition is an active product requirement and implementation track. Browser file input (`accept="image/*"`, `capture="environment"`) remains available; on mobile web, `capture` is a picker hint. Android Capacitor adds camera capture and gallery selection through a source-neutral Blob acquisition result and temporary preview. Camera results delivered after Android process recreation are routed through that same acquisition boundary; previous source images are not persisted/restored. Both paths feed the same local descriptor/reference matcher; raw photos are not uploaded or stored in IndexedDB. `App` routes only an explicitly confirmed local-reference TCGdex catalog ID through the existing Binder action; no candidate is added automatically. Wishlist/Cart scanner actions, a live identity resolver, and general recognition of unseen cards remain unavailable.
+- The isolated development benchmark currently evaluates Tesseract English OCR plus TCGdex text matching; it is not a provider comparison or production recognizer. Its local-photo manifests support capture-condition/card-characteristic labels, pixel dimensions, and per-image crop metadata. No representative real card photographs/results are present in the repository; private photos must be supplied locally and excluded from Git. See [SCANNER_BENCHMARK.md](./SCANNER_BENCHMARK.md) for the provider-neutral evaluation contract and evidence gate. No production OCR/ML or network recognition provider has been selected.
 
-No production recognition engine is selected or registered, so identification and live candidate generation remain unavailable. Configured providers that are unavailable or fail are followed by the explicit offline provider; that provider performs no network access and fabricates no recognition result. Candidate Review accepts normalized results, displays candidate clues, and emits only an explicitly confirmed `ScannerCandidate`. A provider-agnostic catalog-identity service now accepts that confirmed type, normalizes existing catalog-provider results, and returns resolved, ambiguous, no-match, unavailable, error, or cancelled outcomes without choosing among ambiguous records or mutating collections/persistence. It can be adapted to the existing `ICatalogProvider` search interface; no live resolver is configured. The browser image picker is not native/direct camera integration. Manual catalog search remains available.
+The production screen configures a local perceptual-hash matcher against user-confirmed references already stored on the device. It can return advisory candidates for those references; it does not identify unseen cards. No OCR/ML or network recognition engine is selected, and no live catalog resolver is configured. The provider-neutral service boundary normalizes untrusted results; its explicit offline fallback performs no network access and returns unavailable rather than fabricating recognition. Candidate Review displays clues and emits a candidate only after explicit user confirmation. A separate catalog-identity service accepts that confirmed type and normalizes exact existing catalog matches without choosing among ambiguous records or mutating collections/persistence. The current App action routes only an explicitly confirmed local-reference TCGdex ID to the Binder; unsupported and ID-less candidates do not mutate it. Browser file acquisition and Android Capacitor camera/gallery acquisition feed the same temporary Blob path. Manual catalog search remains available.
 
-**Implemented fallback:** a provider-chain boundary that tries configured recognition providers and then the `offline` provider. The offline provider requires no API credentials, makes no HTTP/API request, uploads or persists no image, and returns a normalized `unavailable` result with a clear reason because no local engine is configured. Cancellation is handled at the orchestration boundary, including when an in-flight provider does not settle after cancellation.
+**Implemented service-level fallback:** a provider-chain boundary that can try configured recognition providers and then the `offline` provider. This boundary is not the production ScannerScreen recognition path; ScannerScreen uses the local-reference matcher described above. The offline provider requires no API credentials, makes no HTTP/API request, uploads or persists no image, and returns a normalized `unavailable` result with a clear reason because no local engine is configured. Cancellation is handled at the orchestration boundary, including when an in-flight provider does not settle after cancellation.
 
-**Deferred:** an actual offline OCR/ML engine, production network-provider selection and live candidate generation, production catalog-resolver selection/integration, native iOS project/device validation, and automatic Binder/Wishlist/Cart actions. Android camera/gallery acquisition is implemented through Capacitor but is not yet device-validated or release-packaged. Candidate Review and the catalog-identity boundary are implemented, but no production recognition or identity provider is selected. The offline fallback is not a recognition engine.
+**Deferred:** an OCR/ML engine for recognizing unseen cards, production network-provider selection, production catalog-resolver selection/integration, native iOS project/device validation, and scanner Wishlist/Cart actions. Android camera/gallery acquisition is implemented through Capacitor but is not yet device-validated or release-packaged. Binder insertion is limited to an explicitly confirmed local-reference TCGdex ID; the local matcher is not a general card-recognition or catalog-identity provider. The offline fallback is not a recognition engine.
 
 ### ARTWORK — ACTIVE FOUNDATION
 
@@ -137,7 +137,7 @@ No production recognition engine is selected or registered, so identification an
 - Distinct provider fallback and enrichment semantics.
 - Multiple live catalog providers and catalog resolver.
 - BYO-credential configuration for legitimately user-owned private providers.
-- Production scanner preprocessing and OCR/recognition provider, catalog matching, live candidate generation, production catalog-resolver selection, and Binder/Wishlist/Cart actions. Provider-neutral recognition and catalog-identity boundaries plus Candidate Review are implemented; none provides live recognition or mutates collections.
+- OCR/ML preprocessing and recognition for unseen cards, production catalog-resolver selection, and scanner Wishlist/Cart actions. The local-reference matcher provides advisory matches against saved references; only an explicitly confirmed local-reference TCGdex ID reaches the existing Binder action. Provider-neutral recognition and catalog-identity boundaries plus Candidate Review remain in place.
 - TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
 - Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
 - V1 PMB API/shared reference cache for normalized provider responses, provenance/freshness, request deduplication, rate limiting, and shared cache serving.
@@ -199,21 +199,20 @@ Pricing observations remain source-, marketplace-, currency-, variant-, and time
 ```text
 Image acquisition
     ↓
-Provider-neutral scanner service and result normalization
+Production ScannerScreen: local perceptual matching against saved,
+user-confirmed references
     ↓
-Configured recognition provider(s): none
-    ↓
-Explicit offline/no-network provider: implemented; no local engine configured
-    ↓
-Truthful unavailable result
+Advisory candidates → Candidate Review → explicit confirmation
     ↓
 Manual catalog search remains available
 ```
 
-Production recognition engine, live candidate generation, and catalog identity provider: not selected or registered. Candidate Review emits only an explicitly confirmed recognition candidate; the identity boundary can normalize injected catalog results but has no live provider configured. Binder insertion remains unimplemented.
+General recognition for unseen cards and a catalog identity provider are not selected or registered. Candidate Review emits only an explicitly confirmed candidate; App routes only a confirmed local-reference TCGdex ID to the existing Binder action. The identity boundary can normalize injected catalog results but has no live provider configured.
 
+Existing Binder action only for supported, confirmed local-reference IDs
 Scanner providers produce candidates; they do not directly mutate the binder. Identity verification is metadata verification for known cards, not image recognition.
 
+not the production ScannerScreen recognition path.
 ## Decision preservation
 
 Future coding agents must preserve:

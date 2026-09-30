@@ -580,7 +580,7 @@ The cart item may then be removed or marked purchased.
 
 # 24. Scanner
 
-**Historical scope note:** This specification originally described scanning as not a V1 blocker. Current product direction supersedes that scope status: scanner/recognition is an active product requirement and implementation track. Browser image acquisition, provider-agnostic Candidate Review, and the catalog-identity service boundary are implemented; production recognition, live catalog resolver selection, and candidate-to-collection workflow remain unfinished.
+**Historical scope note:** This specification originally described scanning as not a V1 blocker. Current product direction supersedes that scope status: scanner/recognition is an active product requirement and implementation track. Browser/Android image acquisition, provider-agnostic Candidate Review, and the catalog-identity service boundary are implemented; production recognition and live catalog resolver selection remain unfinished. App routes only explicitly confirmed local-reference TCGdex IDs to the existing Binder action; Wishlist/Cart scanner actions remain unfinished.
 
 The application should support a `ScannerProvider`:
 
@@ -600,9 +600,9 @@ Expected workflow:
         ↓
     Binder
 
-Configured recognition providers may require internet. An explicit no-network offline provider is always the final fallback; without a configured local recognition engine it returns an unavailable result and does not fabricate candidates. Manual catalog search remains available.
+At the service boundary, configured recognition providers may require internet and an explicit no-network offline provider is the final fallback; without a configured local recognition engine it returns unavailable and does not fabricate candidates. This provider-chain fallback is not the current production ScannerScreen path: ScannerScreen uses local perceptual matching against user-confirmed references. Manual catalog search remains available.
 
-Candidate Review accepts normalized `ScannerCandidate` results, presents available clues and informational confidence, and requires explicit user confirmation before emitting the selected candidate. The catalog-identity boundary accepts only that confirmed candidate and can normalize exact matches from an injected existing catalog provider; ambiguous, no-match, unavailable, malformed/error, and cancelled outcomes remain explicit. No live resolver is configured, and identity resolution does not modify Binder, Wishlist, Cart, or persistence. Production recognition and live catalog resolution remain deferred.
+Candidate Review accepts normalized `ScannerCandidate` results, presents available clues and informational confidence, and requires explicit user confirmation before emitting the selected candidate. The catalog-identity boundary accepts only that confirmed candidate and can normalize exact matches from an injected existing catalog provider; ambiguous, no-match, unavailable, malformed/error, and cancelled outcomes remain explicit. No live resolver is configured, and identity resolution does not modify Binder, Wishlist, Cart, or persistence. Separately, App passes only explicitly confirmed local-reference TCGdex IDs to the existing Binder action; no pre-confirmation mutation occurs. Production recognition and live catalog resolution remain deferred.
 
 Manual addition must always remain available.
 
