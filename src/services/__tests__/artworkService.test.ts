@@ -7,6 +7,7 @@ import {
   isArtworkUrlFailed,
   ProviderArtworkResolver,
   type ArtworkProvider,
+  type ArtworkProviderRegistration,
 } from '../artworkService';
 
 const card: Card = {
@@ -22,6 +23,22 @@ const card: Card = {
     cardNumber: '1',
   },
 };
+
+function register(
+  provider: ArtworkProvider,
+  role: ArtworkProviderRegistration['role'],
+  priority: number,
+): ArtworkProviderRegistration {
+  return { provider, role, priority };
+}
+
+function registerInOrder(providers: ArtworkProvider[]): ArtworkProviderRegistration[] {
+  return providers.map((provider, index) => register(
+    provider,
+    index === 0 ? 'primary' : 'fallback',
+    index,
+  ));
+}
 
 describe('artwork resolution', () => {
   it('returns TCGdex primary artwork with source and resolution provenance', async () => {
@@ -45,6 +62,244 @@ describe('artwork resolution', () => {
     });
     expect(result.status === 'available' && result.resolvedAt).toEqual(expect.any(Number));
     expect(result.status === 'available' && result.candidate.unresolvedUsageAllowed).toBe(true);
+  });
+
+  it('does not call secondary artwork when TCGdex returns usable artwork', async () => {
+    let secondaryCalls = 0;
+    const secondary: ArtworkProvider = {
+      source: 'secondary',
+      resolve: async () => {
+        secondaryCalls += 1;
+        return { status: 'unavailable', reason: 'Must not run.' };
+      },
+    };
+    const resolver = new ProviderArtworkResolver([
+      ...artworkProviders,
+      register(secondary, 'fallback', 1),
+    ]);
+    const result = await resolver.resolve({
+      ...card,
+      imageUrlHigh: 'https://assets.tcgdex.net/en/base/base1/1/high.webp',
+    }, 'high');
+
+    expect(result).toMatchObject({ status: 'available', source: 'tcgdex', role: 'primary' });
+    expect(secondaryCalls).toBe(0);
+    expect(result.status === 'available' && result.attempts).toHaveLength(1);
+  });
+
+  it('tries a secondary provider after primary artwork is unavailable or malformed', async () => {
+    const secondary: ArtworkProvider = {
+      source: 'secondary',
+      resolve: async () => ({
+        status: 'available',
+        imageUrl: 'https://images.example/secondary.webp',
+        verification: { status: 'exact', evidence: 'Exact set and number match.' },
+        usageEligibility: { status: 'eligible', evidence: 'Display use reviewed.' },
+      }),
+    };
+    const resolver = new ProviderArtworkResolver([
+      ...artworkProviders,
+      register(secondary, 'fallback', 1),
+    ]);
+
+    await expect(resolver.resolve(card, 'high')).resolves.toMatchObject({
+      status: 'available',
+      source: 'secondary',
+      attempts: [
+        { source: 'tcgdex', status: 'unavailable' },
+        { source: 'secondary', status: 'available' },
+      ],
+    });
+    await expect(resolver.resolve({
+      ...card,
+      imageUrlHigh: 'javascript:alert(1)',
+    }, 'high')).resolves.toMatchObject({
+      status: 'available',
+      source: 'secondary',
+      attempts: [
+        { source: 'tcgdex', status: 'error' },
+        { source: 'secondary', status: 'available' },
+      ],
+    });
+  });
+
+  it('isolates primary provider exceptions and continues to the secondary provider', async () => {
+    const failingPrimary: ArtworkProvider = {
+      source: 'primary',
+      resolve: async () => { throw new Error('Primary service is offline.'); },
+    };
+    const fallback: ArtworkProvider = {
+      source: 'secondary',
+      resolve: async () => ({
+        status: 'available',
+        imageUrl: 'https://images.example/secondary.webp',
+        verification: { status: 'exact', evidence: 'Exact set and number match.' },
+        usageEligibility: { status: 'eligible', evidence: 'Display use reviewed.' },
+      }),
+    };
+
+    await expect(new ProviderArtworkResolver([
+      register(failingPrimary, 'primary', 0),
+      register(fallback, 'fallback', 1),
+    ]).resolve(card, 'high')).resolves.toMatchObject({
+      status: 'available',
+      source: 'secondary',
+      attempts: [
+        { source: 'primary', status: 'error', message: 'Primary service is offline.' },
+        { source: 'secondary', status: 'available' },
+      ],
+    });
+  });
+
+  it('tries a secondary provider after TCGdex artwork is explicitly excluded following image-load failure', async () => {
+    const failedPrimaryUrl = 'https://assets.tcgdex.net/en/base/base1/1/high.webp';
+    const secondary: ArtworkProvider = {
+      source: 'secondary',
+      resolve: async ({ excludedImageUrls }) => {
+        expect(excludedImageUrls).toContain(failedPrimaryUrl);
+        return {
+          status: 'available',
+          imageUrl: 'https://images.example/secondary.webp',
+          verification: { status: 'exact', evidence: 'Exact set and number match.' },
+          usageEligibility: { status: 'eligible', evidence: 'Display use reviewed.' },
+        };
+      },
+    };
+    const resolver = new ProviderArtworkResolver([
+      ...artworkProviders,
+      register(secondary, 'fallback', 1),
+    ]);
+    const cardWithImage = { ...card, imageUrlHigh: failedPrimaryUrl };
+    const first = await resolver.resolve(cardWithImage, 'high');
+    expect(first).toMatchObject({ status: 'available', imageUrl: failedPrimaryUrl, source: 'tcgdex' });
+
+    const retried = await resolver.resolve(cardWithImage, 'high', [failedPrimaryUrl]);
+
+    expect(retried).toMatchObject({
+      status: 'available',
+      imageUrl: 'https://images.example/secondary.webp',
+      source: 'secondary',
+      attempts: [
+        { source: 'tcgdex', status: 'excluded' },
+        { source: 'secondary', status: 'available' },
+      ],
+    });
+  });
+
+  it('rejects candidates that do not verify the requested printing before trying the next provider', async () => {
+    const wrongPrinting: ArtworkProvider = {
+      source: 'wrong-printing',
+      resolve: async () => ({
+        status: 'available',
+        imageUrl: 'https://images.example/wrong-printing.webp',
+        verification: { status: 'rejected', evidence: 'A different printing was identified.' },
+        usageEligibility: { status: 'eligible', evidence: 'Usage reviewed.' },
+      }),
+    };
+    const wrongSetAndNumber: ArtworkProvider = {
+      source: 'wrong-set-number',
+      resolve: async () => ({
+        status: 'available',
+        imageUrl: 'https://images.example/wrong-set-number.webp',
+        verification: { status: 'partial', evidence: 'Set and local number do not match.' },
+        usageEligibility: { status: 'eligible', evidence: 'Usage reviewed.' },
+      }),
+    };
+    const exact: ArtworkProvider = {
+      source: 'exact-printing',
+      resolve: async () => ({
+        status: 'available',
+        imageUrl: 'https://images.example/exact.webp',
+        verification: { status: 'exact', evidence: 'Exact set and local number match.' },
+        usageEligibility: { status: 'eligible', evidence: 'Usage reviewed.' },
+      }),
+    };
+
+    const result = await new ProviderArtworkResolver([
+      register(wrongSetAndNumber, 'primary', 0),
+      register(exact, 'fallback', 3),
+      register(wrongPrinting, 'fallback', 1),
+    ]).resolve(card, 'high');
+
+    expect(result).toMatchObject({
+      status: 'available',
+      source: 'exact-printing',
+      attempts: [
+        { source: 'wrong-set-number', status: 'available' },
+        { source: 'wrong-printing', status: 'available' },
+        { source: 'exact-printing', status: 'available' },
+      ],
+    });
+    expect(result.status === 'available' && result.candidates.map(({ verification }) => verification.status))
+      .toEqual(['partial', 'rejected', 'exact']);
+  });
+
+  it('rejects a known placeholder and proceeds to the next provider', async () => {
+    const fallback: ArtworkProvider = {
+      source: 'secondary',
+      resolve: async () => ({
+        status: 'available',
+        imageUrl: 'https://images.example/real-artwork.webp',
+        verification: { status: 'exact', evidence: 'Exact printing matched.' },
+        usageEligibility: { status: 'eligible', evidence: 'Display use reviewed.' },
+      }),
+    };
+
+    await expect(new ProviderArtworkResolver([
+      ...artworkProviders,
+      register(fallback, 'fallback', 1),
+    ]).resolve({
+      ...card,
+      imageUrlLow: 'https://assets.tcgdex.net/en/base/base1/placeholder.webp',
+    }, 'low')).resolves.toMatchObject({
+      status: 'available',
+      source: 'secondary',
+      attempts: [
+        { source: 'tcgdex', status: 'unavailable', message: expect.stringContaining('placeholder') },
+        { source: 'secondary', status: 'available' },
+      ],
+    });
+  });
+
+  it('tries secondary providers in explicit priority order, independent of registration order', async () => {
+    const calls: string[] = [];
+    const makeProvider = (source: string, status: 'unavailable' | 'available'): ArtworkProvider => ({
+      source,
+      resolve: async () => {
+        calls.push(source);
+        return status === 'unavailable'
+          ? { status, reason: 'No exact artwork.' }
+          : {
+              status,
+              imageUrl: `https://images.example/${source}.webp`,
+              verification: { status: 'exact', evidence: 'Exact printing matched.' },
+              usageEligibility: { status: 'eligible', evidence: 'Display use reviewed.' },
+            };
+      },
+    });
+    const primary = makeProvider('primary', 'unavailable');
+    const firstFallback = makeProvider('fallback-a', 'unavailable');
+    const selectedFallback = makeProvider('fallback-b', 'available');
+    const lastFallback = makeProvider('fallback-c', 'available');
+    const result = await new ProviderArtworkResolver([
+      register(lastFallback, 'fallback', 3),
+      register(selectedFallback, 'fallback', 2),
+      register(primary, 'primary', 0),
+      register(firstFallback, 'fallback', 1),
+    ]).resolve(card, 'high');
+
+    expect(result).toMatchObject({ status: 'available', source: 'fallback-b', role: 'fallback' });
+    expect(calls).toEqual(['primary', 'fallback-a', 'fallback-b']);
+    expect(result.status === 'available' && result.attempts.map(({ source }) => source))
+      .toEqual(calls);
+  });
+
+  it('does not return generated UI fallback as a provider candidate or mutate catalog identity', async () => {
+    const originalCard = structuredClone(card);
+    const result = await new ProviderArtworkResolver([]).resolve(card, 'low');
+
+    expect(result).toMatchObject({ status: 'unavailable', candidates: [], attempts: [] });
+    expect(card).toEqual(originalCard);
   });
 
   it('preserves resolver states for the UI state attribute', () => {
@@ -166,7 +421,10 @@ describe('artwork resolution', () => {
         };
       },
     };
-    const resolver = new ProviderArtworkResolver([primary, fallback]);
+    const resolver = new ProviderArtworkResolver([
+      register(primary, 'primary', 0),
+      register(fallback, 'fallback', 1),
+    ]);
     const originalCard = structuredClone(card);
 
     const result = await resolver.resolve(card, 'high');
@@ -210,7 +468,9 @@ describe('artwork resolution', () => {
       },
     };
 
-    const result = await new ProviderArtworkResolver([mutatingProvider]).resolve(cardWithProviderIds, 'low');
+    const result = await new ProviderArtworkResolver([
+      register(mutatingProvider, 'primary', 0),
+    ]).resolve(cardWithProviderIds, 'low');
 
     expect(cardWithProviderIds.identity?.providerIds?.example).toEqual(['original-id']);
     expect(receivedProviderIds).toEqual(['original-id', 'provider-mutation']);
@@ -223,10 +483,14 @@ describe('artwork resolution', () => {
   });
 
   it('registers only TCGdex in the default production provider list', () => {
-    expect(artworkProviders.map((provider) => provider.source)).toEqual(['tcgdex']);
+    expect(artworkProviders.map(({ provider, role, priority }) => ({
+      source: provider.source,
+      role,
+      priority,
+    }))).toEqual([{ source: 'tcgdex', role: 'primary', priority: 0 }]);
   });
 
-  it('continues through unavailable and failed providers and chooses an exact candidate', async () => {
+  it('selects the first usable candidate and does not call lower-priority providers', async () => {
     const unavailable: ArtworkProvider = {
       source: 'unavailable-source',
       resolve: async () => ({ status: 'unavailable', reason: 'No artwork.' }),
@@ -242,12 +506,19 @@ describe('artwork resolution', () => {
         quality: { width: 800, height: 1120, urlStability: 'verified-stable' },
       }),
     };
-    const failed: ArtworkProvider = {
-      source: 'failed-source',
-      resolve: async () => { throw new Error('Provider offline.'); },
+    let lowerPriorityCalls = 0;
+    const lowerPriority: ArtworkProvider = {
+      source: 'lower-priority-source',
+      resolve: async () => {
+        lowerPriorityCalls += 1;
+        throw new Error('This provider must not be called.');
+      },
     };
-
-    const result = await new ProviderArtworkResolver([unavailable, candidate, failed]).resolve(card, 'high');
+    const result = await new ProviderArtworkResolver([
+      register(unavailable, 'primary', 0),
+      register(candidate, 'fallback', 1),
+      register(lowerPriority, 'fallback', 2),
+    ]).resolve(card, 'high');
 
     expect(result).toMatchObject({
       status: 'available',
@@ -257,9 +528,9 @@ describe('artwork resolution', () => {
       attempts: [
         { source: 'unavailable-source', status: 'unavailable' },
         { source: 'candidate-source', status: 'available' },
-        { source: 'failed-source', status: 'error' },
       ],
     });
+    expect(lowerPriorityCalls).toBe(0);
     expect(result.status === 'available' && result.candidates[0]).toMatchObject({
       sourceCardId: 'source-456',
       requestedIdentity: { tcgdexId: card.id },
@@ -282,7 +553,7 @@ describe('artwork resolution', () => {
       }),
     };
 
-    await expect(new ProviderArtworkResolver([malformed, valid]).resolve(card, 'low')).resolves.toMatchObject({
+    await expect(new ProviderArtworkResolver(registerInOrder([malformed, valid])).resolve(card, 'low')).resolves.toMatchObject({
       status: 'available',
       source: 'valid-source',
       usageEligibility: { status: 'eligible' },
@@ -303,7 +574,7 @@ describe('artwork resolution', () => {
       }),
     };
 
-    await expect(new ProviderArtworkResolver([unresolved]).resolve(card, 'low')).resolves.toMatchObject({
+    await expect(new ProviderArtworkResolver(registerInOrder([unresolved])).resolve(card, 'low')).resolves.toMatchObject({
       status: 'unavailable',
       reason: expect.stringContaining('none passed exact-printing'),
       candidates: [{
@@ -323,7 +594,7 @@ describe('artwork resolution', () => {
       }),
     };
 
-    await expect(new ProviderArtworkResolver([unsupportedClaim]).resolve(card, 'low')).resolves.toMatchObject({
+    await expect(new ProviderArtworkResolver(registerInOrder([unsupportedClaim])).resolve(card, 'low')).resolves.toMatchObject({
       status: 'unavailable',
       candidates: [{ verification: { status: 'unresolved' } }],
     });
@@ -340,7 +611,7 @@ describe('artwork resolution', () => {
       }),
     };
 
-    await expect(new ProviderArtworkResolver([unsupportedUsageClaim]).resolve(card, 'low')).resolves.toMatchObject({
+    await expect(new ProviderArtworkResolver(registerInOrder([unsupportedUsageClaim])).resolve(card, 'low')).resolves.toMatchObject({
       status: 'unavailable',
       candidates: [{
         usageEligibility: { status: 'unresolved' },
@@ -374,13 +645,13 @@ describe('artwork resolution', () => {
       }),
     };
 
-    await expect(new ProviderArtworkResolver([ineligible]).resolve(card, 'low')).resolves.toMatchObject({
+    await expect(new ProviderArtworkResolver(registerInOrder([ineligible])).resolve(card, 'low')).resolves.toMatchObject({
       status: 'unavailable',
       candidates: [{ usageEligibility: { status: 'ineligible' } }],
     });
   });
 
-  it('selects deterministically by eligibility and observable quality, not provider order', async () => {
+  it('uses explicit priority rather than quality or registration order', async () => {
     const makeProvider = (
       source: string,
       usageStatus: 'eligible' | 'unresolved',
@@ -396,15 +667,24 @@ describe('artwork resolution', () => {
         quality: { width, height: 1000 },
       }),
     });
-    const lowerQuality = makeProvider('source-a', 'eligible', 400, 'https://images.example/a.webp');
-    const higherQuality = makeProvider('source-b', 'eligible', 800, 'https://images.example/b.webp');
-    const unresolvedUsage = makeProvider('source-c', 'unresolved', 1200, 'https://images.example/c.webp');
+    const primary = makeProvider('primary-source', 'eligible', 400, 'https://images.example/a.webp');
+    const fallback = makeProvider('higher-quality-fallback', 'eligible', 1200, 'https://images.example/b.webp');
+    const last = makeProvider('last-fallback', 'eligible', 1600, 'https://images.example/c.webp');
+    const registrations = [
+      register(last, 'fallback', 2),
+      register(fallback, 'fallback', 1),
+      register(primary, 'primary', 0),
+    ];
 
-    const first = await new ProviderArtworkResolver([lowerQuality, higherQuality, unresolvedUsage]).resolve(card, 'high');
-    const second = await new ProviderArtworkResolver([unresolvedUsage, higherQuality, lowerQuality]).resolve(card, 'high');
+    const result = await new ProviderArtworkResolver(registrations).resolve(card, 'high');
 
-    expect(first).toMatchObject({ status: 'available', source: 'source-b' });
-    expect(second).toMatchObject({ status: 'available', source: 'source-b' });
+    expect(result).toMatchObject({
+      status: 'available',
+      source: 'primary-source',
+      role: 'primary',
+      candidate: { quality: { width: 400 } },
+    });
+    expect(result.status === 'available' ? result.attempts.map(({ source }) => source) : []).toEqual(['primary-source']);
   });
 
   it('falls through malformed provider output and reports errors if no artwork resolves', async () => {
@@ -413,7 +693,7 @@ describe('artwork resolution', () => {
       resolve: async () => ({ status: 'available', imageUrl: 'not-a-url' }),
     };
 
-    await expect(new ProviderArtworkResolver([provider]).resolve(card, 'low')).resolves.toMatchObject({
+    await expect(new ProviderArtworkResolver(registerInOrder([provider])).resolve(card, 'low')).resolves.toMatchObject({
       status: 'error',
       message: expect.stringContaining('invalid or unusable candidate'),
       attempts: [{ source: 'broken-provider', status: 'malformed' }],

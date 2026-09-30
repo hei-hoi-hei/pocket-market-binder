@@ -50,6 +50,12 @@ export interface ArtworkProvider {
   resolve(input: ArtworkProviderInput): Promise<unknown>;
 }
 
+export interface ArtworkProviderRegistration {
+  provider: ArtworkProvider;
+  role: ArtworkRole;
+  priority: number;
+}
+
 export interface ArtworkCandidate extends ArtworkProviderCandidate {
   source: string;
   requestedIdentity: CanonicalCardIdentity;
@@ -62,7 +68,7 @@ export interface ArtworkCandidate extends ArtworkProviderCandidate {
 
 export interface ArtworkAttempt {
   source: string;
-  status: 'available' | 'unavailable' | 'malformed' | 'error';
+  status: 'available' | 'unavailable' | 'excluded' | 'malformed' | 'error';
   message?: string;
 }
 
@@ -227,33 +233,8 @@ function normalizeCandidate(
   };
 }
 
-function pixelArea(candidate: ArtworkCandidate): number | null {
-  const { width, height } = candidate.quality ?? {};
-  return width !== undefined && height !== undefined ? width * height : null;
-}
-
-function compareCandidates(left: ArtworkCandidate, right: ArtworkCandidate): number {
-  if (left.usageEligibility.status !== right.usageEligibility.status) {
-    return left.usageEligibility.status === 'eligible' ? -1 : 1;
-  }
-
-  const leftArea = pixelArea(left);
-  const rightArea = pixelArea(right);
-  if (leftArea !== rightArea) {
-    if (leftArea === null) return 1;
-    if (rightArea === null) return -1;
-    return rightArea - leftArea;
-  }
-
-  const leftStability = left.quality?.urlStability === 'verified-stable' ? 0 : 1;
-  const rightStability = right.quality?.urlStability === 'verified-stable' ? 0 : 1;
-  if (leftStability !== rightStability) return leftStability - rightStability;
-
-  return left.source.localeCompare(right.source) || left.imageUrl.localeCompare(right.imageUrl);
-}
-
 export class ProviderArtworkResolver implements ArtworkResolver {
-  constructor(private readonly providers: readonly ArtworkProvider[]) {}
+  constructor(private readonly registrations: readonly ArtworkProviderRegistration[]) {}
 
   async resolve(
     card: Card,
@@ -263,127 +244,49 @@ export class ProviderArtworkResolver implements ArtworkResolver {
     const identity = canonicalIdentity(card);
     const attempts: ArtworkAttempt[] = [];
     const candidates: ArtworkCandidate[] = [];
-    const settled = await Promise.allSettled(this.providers.map(async (provider, index): Promise<ArtworkAttempt & {
-      candidate?: ArtworkCandidate;
-    }> => {
-      if (!provider || typeof provider.source !== 'string' || !provider.source.trim()
-        || typeof provider.resolve !== 'function') {
-        return {
-          source: 'unknown',
-          status: 'malformed' as const,
-          message: 'The artwork provider registration is invalid.',
-        };
-      }
-
-      try {
-        const result: unknown = await provider.resolve({
-          identity: copyIdentity(identity),
-          quality,
-          excludedImageUrls: [...excludedImageUrls],
-          imageUrls: { low: card.imageUrlLow, high: card.imageUrlHigh },
-        });
-
-        if (!isRecord(result) || typeof result.status !== 'string') {
-          return {
-            source: provider.source,
-            status: 'malformed' as const,
-            message: 'The artwork provider returned an invalid result.',
-          };
-        }
-        if (result.status === 'unavailable') {
-          return typeof result.reason === 'string' && result.reason.trim()
-            ? { source: provider.source, status: 'unavailable' as const, message: result.reason.trim() }
-            : { source: provider.source, status: 'malformed' as const, message: 'The provider returned an invalid unavailable result.' };
-        }
-        if (result.status === 'error') {
-          return typeof result.message === 'string' && result.message.trim()
-            ? { source: provider.source, status: 'error' as const, message: result.message.trim() }
-            : { source: provider.source, status: 'malformed' as const, message: 'The provider returned an invalid error result.' };
-        }
-        if (result.status !== 'available') {
-          return {
-            source: provider.source,
-            status: 'malformed' as const,
-            message: 'The artwork provider returned an unsupported status.',
-          };
-        }
-
-        const candidate = normalizeCandidate(
-          result,
-          provider,
-          identity,
-          index === 0 ? 'primary' : 'fallback',
-          provider.allowUnresolvedUsage === true,
-          Date.now(),
-        );
-        if (!candidate) {
-          return {
-            source: provider.source,
-            status: 'malformed' as const,
-            message: 'The artwork provider returned an invalid or unusable candidate.',
-          };
-        }
-        if (excludedImageUrls.includes(candidate.imageUrl)) {
-          return {
-            source: provider.source,
-            status: 'unavailable' as const,
-            message: 'The artwork URL failed to load in the current view.',
-          };
-        }
-        if (isKnownPlaceholderArtworkUrl(candidate.imageUrl)) {
-          return {
-            source: provider.source,
-            status: 'unavailable' as const,
-            message: 'The provider URL is a known placeholder, not card artwork.',
-          };
-        }
-        return { source: provider.source, status: 'available' as const, candidate };
-      } catch (error) {
-        return {
-          source: provider.source,
-          status: 'error' as const,
-          message: error instanceof Error && error.message
-            ? error.message
-            : 'The artwork provider failed unexpectedly.',
-        };
-      }
-    }));
-
-    for (const result of settled) {
-      if (result.status === 'fulfilled') {
-        const { candidate, ...attempt } = result.value;
-        attempts.push(attempt);
-        if (candidate) candidates.push(candidate);
-      } else {
-        attempts.push({
-          source: 'unknown',
-          status: 'error',
-          message: result.reason instanceof Error && result.reason.message
-            ? result.reason.message
-            : 'The artwork provider failed unexpectedly.',
-        });
-      }
+    const invalidRegistration = this.validateRegistrations();
+    if (invalidRegistration) {
+      return {
+        status: 'error',
+        message: invalidRegistration,
+        candidates,
+        attempts: this.registrations.map((registration) => ({
+          source: typeof registration?.provider?.source === 'string' ? registration.provider.source : 'unknown',
+          status: 'malformed',
+          message: invalidRegistration,
+        })),
+      };
     }
 
-    const selectable = candidates
-      .filter((candidate) => candidate.verification.status === 'exact'
-        && (candidate.usageEligibility.status === 'eligible'
-          || (candidate.usageEligibility.status === 'unresolved' && candidate.unresolvedUsageAllowed)))
-      .sort(compareCandidates);
-    const selected = selectable[0];
-    if (selected) {
-      return {
-        status: 'available',
-        imageUrl: selected.imageUrl,
-        source: selected.source,
-        resolvedAt: selected.resolvedAt,
-        role: selected.role,
-        candidate: selected,
-        verification: selected.verification,
-        usageEligibility: selected.usageEligibility,
-        candidates,
-        attempts,
-      };
+    const ordered = [...this.registrations].sort((left, right) => left.priority - right.priority);
+    for (const registration of ordered) {
+      const { provider, role } = registration;
+      const attempt = await this.resolveProvider(
+        provider,
+        role,
+        identity,
+        card,
+        quality,
+        excludedImageUrls,
+      );
+      attempts.push(attempt);
+      if (attempt.candidate) {
+        candidates.push(attempt.candidate);
+        if (this.isSelectable(attempt.candidate)) {
+          return {
+            status: 'available',
+            imageUrl: attempt.candidate.imageUrl,
+            source: attempt.candidate.source,
+            resolvedAt: attempt.candidate.resolvedAt,
+            role: attempt.candidate.role,
+            candidate: attempt.candidate,
+            verification: attempt.candidate.verification,
+            usageEligibility: attempt.candidate.usageEligibility,
+            candidates,
+            attempts,
+          };
+        }
+      }
     }
 
     const failures = attempts.filter((attempt) => attempt.status === 'error' || attempt.status === 'malformed');
@@ -406,6 +309,138 @@ export class ProviderArtworkResolver implements ArtworkResolver {
       candidates,
       attempts,
     };
+  }
+
+  private validateRegistrations(): string | null {
+    if (this.registrations.length === 0) return null;
+    const priorities = new Set<number>();
+    let primaryCount = 0;
+    for (const registration of this.registrations) {
+      if (!registration || !registration.provider
+        || (registration.role !== 'primary' && registration.role !== 'fallback')
+        || !Number.isSafeInteger(registration.priority)
+        || registration.priority < 0) {
+        return 'The artwork provider registration is invalid.';
+      }
+      if (priorities.has(registration.priority)) {
+        return 'Artwork provider priorities must be unique.';
+      }
+      priorities.add(registration.priority);
+      if (registration.role === 'primary') {
+        primaryCount += 1;
+        if (registration.priority !== 0) return 'The primary artwork provider must have priority 0.';
+      } else if (registration.priority === 0) {
+        return 'Fallback artwork providers must have a positive priority.';
+      }
+    }
+    return primaryCount === 1 ? null : 'Exactly one primary artwork provider must be registered.';
+  }
+
+  private isSelectable(candidate: ArtworkCandidate): boolean {
+    return candidate.verification.status === 'exact'
+      && (candidate.usageEligibility.status === 'eligible'
+        || (candidate.usageEligibility.status === 'unresolved' && candidate.unresolvedUsageAllowed));
+  }
+
+  private async resolveProvider(
+    provider: ArtworkProvider,
+    role: ArtworkRole,
+    identity: CanonicalCardIdentity,
+    card: Card,
+    quality: ArtworkQuality,
+    excludedImageUrls: string[],
+  ): Promise<ArtworkAttempt & { candidate?: ArtworkCandidate }> {
+    if (typeof provider.source !== 'string' || !provider.source.trim()
+      || typeof provider.resolve !== 'function') {
+      return {
+        source: 'unknown',
+        status: 'malformed',
+        message: 'The artwork provider registration is invalid.',
+      };
+    }
+
+    try {
+      const result: unknown = await provider.resolve({
+        identity: copyIdentity(identity),
+        quality,
+        excludedImageUrls: [...excludedImageUrls],
+        imageUrls: { low: card.imageUrlLow, high: card.imageUrlHigh },
+      });
+
+      if (!isRecord(result) || typeof result.status !== 'string') {
+        return {
+          source: provider.source,
+          status: 'malformed',
+          message: 'The artwork provider returned an invalid result.',
+        };
+      }
+      if (result.status === 'unavailable') {
+        if (typeof result.reason !== 'string' || !result.reason.trim()) {
+          return {
+            source: provider.source,
+            status: 'malformed',
+            message: 'The provider returned an invalid unavailable result.',
+          };
+        }
+        const message = result.reason.trim();
+        return {
+          source: provider.source,
+          status: /excluded|failed to load/i.test(message) ? 'excluded' : 'unavailable',
+          message,
+        };
+      }
+      if (result.status === 'error') {
+        return typeof result.message === 'string' && result.message.trim()
+          ? { source: provider.source, status: 'error', message: result.message.trim() }
+          : { source: provider.source, status: 'malformed', message: 'The provider returned an invalid error result.' };
+      }
+      if (result.status !== 'available') {
+        return {
+          source: provider.source,
+          status: 'malformed',
+          message: 'The artwork provider returned an unsupported status.',
+        };
+      }
+
+      const candidate = normalizeCandidate(
+        result,
+        provider,
+        identity,
+        role,
+        provider.allowUnresolvedUsage === true,
+        Date.now(),
+      );
+      if (!candidate) {
+        return {
+          source: provider.source,
+          status: 'malformed',
+          message: 'The artwork provider returned an invalid or unusable candidate.',
+        };
+      }
+      if (excludedImageUrls.includes(candidate.imageUrl)) {
+        return {
+          source: provider.source,
+          status: 'excluded',
+          message: 'The artwork URL was excluded after failing to load in the current view.',
+        };
+      }
+      if (isKnownPlaceholderArtworkUrl(candidate.imageUrl)) {
+        return {
+          source: provider.source,
+          status: 'unavailable',
+          message: 'The provider URL is a known placeholder, not card artwork.',
+        };
+      }
+      return { source: provider.source, status: 'available', candidate };
+    } catch (error) {
+      return {
+        source: provider.source,
+        status: 'error',
+        message: error instanceof Error && error.message
+          ? error.message
+          : 'The artwork provider failed unexpectedly.',
+      };
+    }
   }
 }
 
@@ -461,8 +496,8 @@ export function isArtworkUrlFailed(failedUrl: string | null, currentUrl: string 
   return Boolean(currentUrl && failedUrl === currentUrl);
 }
 
-export const artworkProviders: readonly ArtworkProvider[] = [
-  new TCGdexArtworkProvider(),
+export const artworkProviders: readonly ArtworkProviderRegistration[] = [
+  { provider: new TCGdexArtworkProvider(), role: 'primary', priority: 0 },
 ];
 
 export const artworkService: ArtworkResolver = new ProviderArtworkResolver(artworkProviders);

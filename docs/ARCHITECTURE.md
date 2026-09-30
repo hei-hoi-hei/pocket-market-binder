@@ -92,15 +92,15 @@ External providers are interchangeable sources, not permanent architectural auth
 ```text
 Canonical Card Identity
         │
-        ├── Artwork Source Pool
+        ├── Artwork Resolver
         │       ↓
-        │   Verify exact printing
-        │       ↓
-        │   Verify usage eligibility
-        │       ↓
-        │   Select best eligible artwork
-        │       ↓
-        │   Preserve provenance
+        │   Primary TCGdex artwork
+        │       ↓ if unusable
+        │   Code-registered secondary artwork providers, by explicit priority
+        │       ↓ first verified and eligible result
+        │   Preserve provider provenance
+        │       ↓ if none is usable
+        │   Generated UI placeholder (not a provider result or catalog record)
         │
         └── Pricing Source Pool
                 ↓
@@ -126,13 +126,13 @@ The artwork resolver implements this provider-pool boundary. The pricing source-
 
 **Implemented artwork source-pool foundation**
 
-The resolver accepts a provider list, normalizes candidate provenance, isolates provider failures, and applies deterministic selection. Exact-printing verification must be explicit and supported with evidence; candidates with partial, unresolved, or rejected printing verification are not selected. Explicitly ineligible usage is rejected. Eligible usage is selectable; unresolved usage is selectable only when the provider is explicitly configured with the unresolved-usage compatibility option. TCGdex is explicitly configured for that compatibility to preserve existing display while its usage status remains unresolved. This is not a rights determination.
+The resolver runs providers sequentially using explicit, unique priority registrations; registration-array position and candidate image quality do not override provider priority. It advances after lookup failure, malformed or rejected artwork, excluded URLs, or candidates that fail exact-printing/usage checks, and selects the first usable result. Exact-printing verification must be explicit and supported with evidence; candidates with partial, unresolved, or rejected printing verification are not selected. Explicitly ineligible usage is rejected. Eligible usage is selectable; unresolved usage is selectable only when the provider is explicitly configured with the unresolved-usage compatibility option. TCGdex is explicitly configured for that compatibility to preserve existing display while its usage status remains unresolved. This is not a rights determination.
 
 TCGdex remains the sole configured production artwork provider. Its URLs are associated with the TCGdex catalog record for the requested canonical identity; this is the current exact-printing evidence. No claim is made about TCGdex artwork usage rights. Candidate resolution does not mutate canonical identity or collection data.
 
 **Additional artwork source selection**
 
-Additional providers require evidence for exact printing and, by default, explicit eligible usage/display status. An unresolved usage status is not selectable for a provider unless the provider is explicitly configured to allow unresolved-usage compatibility. Among candidates that pass printing verification and usage policy, selection uses deterministic, observable quality and stability information rather than an unsupported numeric score. Preserve provider/source identity, requested canonical identity, source card ID where available, evidence, URL, quality, and retrieval time. If no candidate can be selected, retain the UI placeholder; never guess a different printing.
+Secondary artwork providers receive the already-known canonical card identity and operate only as artwork lookups; they do not replace or duplicate the catalog provider. Additional providers require evidence for exact printing and, by default, explicit eligible usage/display status. An unresolved usage status is not selectable for a provider unless the provider is explicitly configured to allow unresolved-usage compatibility. Quality and stability metadata are retained but do not reorder provider priority. Preserve provider/source identity, requested canonical identity, source card ID where available, evidence, URL, quality, and the resolver timestamp without representing it as provider retrieval time. If no candidate can be selected, retain the generated UI placeholder; never guess a different printing.
 
 No secondary artwork source is approved or integrated. The bounded evidence for `30th-c-001` through `30th-c-030` is recorded in [ARTWORK_SOURCE_INVESTIGATION.md](./ARTWORK_SOURCE_INVESTIGATION.md); its findings do not establish artwork rights.
 
