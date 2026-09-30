@@ -8,7 +8,7 @@ import { CandidateReview } from '@/components/scanner/CandidateReview';
 import { ReferenceEnrollment } from '@/components/scanner/ReferenceEnrollment';
 import { ScannerFeedback } from '@/components/scanner/ScannerFeedback';
 import { identifyImageWithProviders } from '@/services/scanner/scannerOrchestration';
-import { createLocalReferenceScannerProvider } from '@/services/scanner/localReferenceMatcher';
+import { createScannerProviders } from '@/services/scanner/scannerProviders';
 import {
   chooseNativePhotoFromGallery,
   consumeRestoredCameraAcquisition,
@@ -179,8 +179,11 @@ export function ScannerScreen(props: ScannerScreenProps) {
     setLocalResult(null);
     setLocalResultDurationMs(null);
     try {
-      const provider = createLocalReferenceScannerProvider();
-      const result = await identifyImageWithProviders([provider], image.blob, controller.signal);
+      const result = await identifyImageWithProviders(
+        createScannerProviders(),
+        image.blob,
+        controller.signal,
+      );
       if (!controller.signal.aborted) {
         setLocalResult(result);
         setLocalResultDurationMs(Math.max(0, Math.round(performance.now() - startedAt)));
@@ -191,7 +194,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
           status: 'error',
           message: 'Recognition could not be completed.',
           retryable: true,
-          source: 'local-reference',
+          source: 'fusion',
         });
         setLocalResultDurationMs(Math.max(0, Math.round(performance.now() - startedAt)));
       }
@@ -221,7 +224,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
         }
       >
         <p className="text-sm text-leather-500">
-          Match against local references from previously confirmed cards. First-time cards can be found with manual catalog search.
+          Run available recognition providers on a card photo. If no candidate is found, search the catalog manually.
         </p>
       </ScreenHeader>
 
@@ -359,8 +362,8 @@ export function ScannerScreen(props: ScannerScreenProps) {
             className="mt-4 w-full bg-leather-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-2 hover:bg-leather-800 disabled:cursor-wait disabled:opacity-70"
           >
             {matching
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Matching Local References...</>
-              : <><AlertCircle className="w-4 h-4" /> Match Local References</>}
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Recognizing Card...</>
+              : <><AlertCircle className="w-4 h-4" /> Recognize Card</>}
           </button>
         </section>
       )}

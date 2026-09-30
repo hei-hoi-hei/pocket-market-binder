@@ -12,7 +12,7 @@ Pocket Market Binder is an offline-first, expandable trading-card collection and
 - **Digital Virtual Binder & Collection Management:** Full CRUD management for owned cards, duplicate tracking, wishlist, and shopping/acquisition cart with native IndexedDB persistence.
 - **TCGdex Reference Catalog:** Comprehensive Pokémon TCG catalog search, set filtering, high-resolution artwork resolution, and offline catalog caching.
 - **Pocket Market Reference Pricing Foundation:** `v1-median` consolidation and observation models exist, but current live provider coverage is limited and the TCGdex pricing response extraction requires verification. Do not interpret the engine as complete live pricing coverage.
-- **Scanner Foundation (Incomplete):** Browser image acquisition and scanner contract exist. Production identification, candidate results, user confirmation, catalog identity resolution, and scanner-to-collection actions are not implemented.
+- **Scanner Foundation:** An extensible provider contract normalizes and fuses recognition candidates for a provider-neutral review flow. Local-reference matching is available; each candidate still requires explicit user confirmation before a supported catalog identity is added to the Binder. Recognition for unseen cards is future work.
 - **Collection Statistics:** Summary counts for owned cards, quantities, rarity breakdowns, wishlist, and cart; live collection valuation is not established by the current collection statistics implementation.
 - **Offline-First PWA:** Responsive mobile-first design with desktop breakpoints, service worker shell caching, and isolated IndexedDB storage keys; offline availability of uncached external catalog data is not implied.
 - **₱0 Operating Cost Architecture:** Operates entirely client-side without mandatory backends or client-exposed API secrets.
@@ -25,7 +25,7 @@ Pocket Market Binder is an offline-first, expandable trading-card collection and
 - Core local collection, binder, wishlist, and cart workflows.
 - Pokémon TCG catalog integration via public TCGdex API.
 - Pricing consolidation foundation with isolated caching and source-attributed observations.
-- Browser image acquisition foundation; scanner recognition and downstream collection integration remain unfinished.
+- Browser image acquisition, provider-based local-reference recognition, explicit candidate review, and confirmed scanner-to-Binder integration.
 - MIT-licensed open-source codebase.
 
 ### Optional / future scope:

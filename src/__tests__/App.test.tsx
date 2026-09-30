@@ -27,8 +27,8 @@ vi.mock('@/services/scanner/scannerOrchestration', () => ({
   identifyImageWithProviders: scannerMocks.identify,
 }));
 
-vi.mock('@/services/scanner/localReferenceMatcher', () => ({
-  createLocalReferenceScannerProvider: () => scannerMocks.provider,
+vi.mock('@/services/scanner/scannerProviders', () => ({
+  createScannerProviders: () => [scannerMocks.provider],
 }));
 
 vi.mock('@/services/scanner/capacitorCameraAcquisition', () => ({
@@ -113,7 +113,7 @@ describe('production scanner-to-Binder wiring', () => {
   }
 
   async function matchLocalReferences(): Promise<void> {
-    const matchButton = findButton('Match Local References');
+    const matchButton = findButton('Recognize Card');
     if (!matchButton) throw new Error('Scanner match action was not rendered.');
     await act(async () => {
       matchButton.click();
@@ -208,19 +208,48 @@ describe('production scanner-to-Binder wiring', () => {
     expect(await storage.get<BinderEntry[]>('binder')).toEqual([]);
   });
 
-  it('does not route a confirmed non-local recognition candidate to Binder', async () => {
+  it('routes a future provider candidate with a supported catalog identity after explicit confirmation', async () => {
     scannerMocks.identify.mockResolvedValue({
       status: 'success',
       candidates: [{
         catalogProvider: 'tcgdex',
-        catalogId: 'sv01-unknown',
-        name: 'Unknown provider card',
-        provider: 'remote-recognizer',
-        providers: ['remote-recognizer'],
+        catalogId: 'sv01-visual',
+        name: 'Future visual provider card',
+        provider: 'future-visual',
+        providers: ['future-visual'],
       }],
     });
     const fileInput = await openScanner();
-    await selectFile(fileInput, 'unsupported-source.jpg');
+    await selectFile(fileInput, 'future-provider.jpg');
+    await matchLocalReferences();
+    expect(await storage.get<BinderEntry[]>('binder')).toEqual([]);
+    const candidateChoice = container.querySelector<HTMLInputElement>('input[type="radio"]');
+    if (!candidateChoice) throw new Error('Candidate selection was not rendered.');
+    await act(async () => candidateChoice.click());
+    const confirmButton = findButton('Confirm selected candidate');
+    if (!confirmButton) throw new Error('Explicit candidate confirmation was not rendered.');
+    await act(async () => confirmButton.click());
+
+    await vi.waitFor(async () => {
+      expect(await storage.get<BinderEntry[]>('binder')).toEqual([
+        expect.objectContaining({ cardId: 'sv01-visual', quantity: 1 }),
+      ]);
+    });
+  });
+
+  it('does not route a confirmed candidate with an unsupported catalog namespace to Binder', async () => {
+    scannerMocks.identify.mockResolvedValue({
+      status: 'success',
+      candidates: [{
+        catalogProvider: 'unsupported-catalog',
+        catalogId: 'card-unknown',
+        name: 'Unsupported catalog card',
+        provider: 'future-visual',
+        providers: ['future-visual'],
+      }],
+    });
+    const fileInput = await openScanner();
+    await selectFile(fileInput, 'unsupported-catalog.jpg');
     await matchLocalReferences();
     const candidateChoice = container.querySelector<HTMLInputElement>('input[type="radio"]');
     if (!candidateChoice) throw new Error('Candidate selection was not rendered.');

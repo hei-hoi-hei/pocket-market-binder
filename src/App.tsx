@@ -38,11 +38,8 @@ function AppShell() {
   const { addToBinder } = useCollection();
 
   const handleScannerCandidateConfirmed = useCallback((candidate: ConfirmedScannerCandidate) => {
-    const fromLocalReference = candidate.provider === 'local-reference' ||
-      candidate.providers?.includes('local-reference');
     if (
       !isConfirmedScannerCandidate(candidate) ||
-      !fromLocalReference ||
       candidate.catalogProvider !== 'tcgdex'
     ) return;
     const cardId = candidate.catalogId?.trim();

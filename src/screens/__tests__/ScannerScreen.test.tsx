@@ -23,8 +23,8 @@ vi.mock('@/services/scanner/scannerOrchestration', () => ({
   identifyImageWithProviders: scannerMocks.identify,
 }));
 
-vi.mock('@/services/scanner/localReferenceMatcher', () => ({
-  createLocalReferenceScannerProvider: () => scannerMocks.provider,
+vi.mock('@/services/scanner/scannerProviders', () => ({
+  createScannerProviders: () => [scannerMocks.provider],
 }));
 
 vi.mock('@/services/scanner/capacitorCameraAcquisition', () => ({
@@ -148,7 +148,7 @@ describe('ScannerScreen interactions', () => {
     const onCandidateConfirmed = await renderScreen();
     expect(container.textContent).toContain('Prefer manual catalog search? Browse cards');
     expect([...container.querySelectorAll('button')]
-      .some((button) => button.textContent?.includes('Match Local References'))).toBe(false);
+      .some((button) => button.textContent?.includes('Recognize Card'))).toBe(false);
     expect(scannerMocks.identify).not.toHaveBeenCalled();
 
     const file = await provideImage();
@@ -160,7 +160,7 @@ describe('ScannerScreen interactions', () => {
     expect(onCandidateConfirmed).not.toHaveBeenCalled();
 
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered.');
     await act(async () => {
       matchButton.click();
@@ -212,7 +212,7 @@ describe('ScannerScreen interactions', () => {
     const file = await provideImage('gallery-card.png', 'scanner-gallery-input');
     expect(container.textContent).toContain('Selected: gallery-card.png');
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered for gallery photo.');
     await act(async () => { matchButton.click(); await Promise.resolve(); });
 
@@ -229,7 +229,7 @@ describe('ScannerScreen interactions', () => {
     const onCandidateConfirmed = await renderScreen();
     await provideImage();
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered.');
     await act(async () => { matchButton.click(); await Promise.resolve(); });
 
@@ -259,7 +259,7 @@ describe('ScannerScreen interactions', () => {
     await renderScreen();
     await provideImage();
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered.');
     await act(async () => { matchButton.click(); await Promise.resolve(); });
 
@@ -290,7 +290,7 @@ describe('ScannerScreen interactions', () => {
     await provideImage();
 
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered.');
     await act(async () => {
       matchButton.click();
@@ -320,7 +320,7 @@ describe('ScannerScreen interactions', () => {
     await provideImage();
 
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered.');
     await act(async () => {
       matchButton.click();
@@ -354,7 +354,7 @@ describe('ScannerScreen interactions', () => {
     await provideImage();
 
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered.');
     await act(async () => {
       matchButton.click();
@@ -390,7 +390,7 @@ describe('ScannerScreen interactions', () => {
     const imageA = await provideImage('image-a.png');
 
     const findMatchButton = () => [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     const matchImageA = findMatchButton();
     if (!matchImageA) throw new Error('Local matching action was not rendered for image A.');
     await act(async () => {
@@ -418,7 +418,7 @@ describe('ScannerScreen interactions', () => {
     });
     expect(container.textContent).toContain('Selected: image-b.png');
     expect(container.textContent).not.toContain('Late image A');
-    expect(container.textContent).toContain('Matching Local References...');
+    expect(container.textContent).toContain('Recognizing Card...');
 
     await act(async () => {
       resolveImageB({ status: 'success', candidates: [{ ...candidate, name: 'Image B result' }] });
@@ -455,7 +455,7 @@ describe('ScannerScreen interactions', () => {
     expect(onCandidateConfirmed).not.toHaveBeenCalled();
 
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered for the native photo.');
     await act(async () => {
       matchButton.click();
@@ -487,7 +487,7 @@ describe('ScannerScreen interactions', () => {
     expect(scannerMocks.identify).not.toHaveBeenCalled();
 
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered for the restored photo.');
     await act(async () => {
       matchButton.click();
@@ -506,7 +506,7 @@ describe('ScannerScreen interactions', () => {
     await provideImage('current-card.png');
 
     const matchButton = [...container.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('Match Local References'));
+      .find((button) => button.textContent?.includes('Recognize Card'));
     if (!matchButton) throw new Error('Local matching action was not rendered.');
     await act(async () => {
       matchButton.click();
