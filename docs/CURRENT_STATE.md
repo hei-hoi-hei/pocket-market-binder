@@ -145,14 +145,14 @@ The production screen configures a local perceptual-hash matcher against user-co
 - OCR/ML preprocessing and recognition for unseen cards, production catalog-resolver selection, and scanner Wishlist/Cart actions. The local-reference matcher provides advisory matches against saved references; only an explicitly confirmed local-reference TCGdex ID reaches the existing Binder action. Provider-neutral recognition and catalog-identity boundaries plus Candidate Review remain in place.
 - TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
 - Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
-- V1 PMB API/shared reference cache for normalized provider responses, provenance/freshness, request deduplication, rate limiting, and shared cache serving.
-- V1 versioned backup/restore for user-owned data, including automatic/remote backup where feasible; shared and disposable caches are not required backup contents.
 - Narrow-width audit and targeted responsive fixes without redesign.
 - Robust provider capability/health reporting.
 
 ### OPTIONAL / FUTURE
 
 - Multi-device collection synchronization remains optional/future scope pending a separate product decision. It is distinct from optional future reference caching and backup; local-first collection functionality does not depend on synchronization.
+- Optional PMB API/shared reference cache for normalized provider responses, provenance/freshness, request deduplication, rate limiting, and shared cache serving.
+- Optional versioned/automatic/remote backup for user-owned data; backend/login requirements are not part of V1.
 - Additional TCG categories.
 - Additional artwork sources and prefetching.
 - User-facing pricing refresh/source controls.
@@ -209,15 +209,17 @@ user-confirmed references
     ↓
 Advisory candidates → Candidate Review → explicit confirmation
     ↓
+Existing Binder action only for supported, confirmed local-reference IDs
+
+Separate service boundary: provider-chain/offline-unavailable fallback;
+not the production ScannerScreen recognition path.
 Manual catalog search remains available
 ```
 
 General recognition for unseen cards and a catalog identity provider are not selected or registered. Candidate Review emits only an explicitly confirmed candidate; App routes only a confirmed local-reference TCGdex ID to the existing Binder action. The identity boundary can normalize injected catalog results but has no live provider configured.
 
-Existing Binder action only for supported, confirmed local-reference IDs
 Scanner providers produce candidates; they do not directly mutate the binder. Identity verification is metadata verification for known cards, not image recognition.
 
-not the production ScannerScreen recognition path.
 ## Decision preservation
 
 Future coding agents must preserve:
