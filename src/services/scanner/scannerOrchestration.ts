@@ -23,13 +23,13 @@ function compareStrings(left: string, right: string): number {
 
 function getIdentityKey(candidate: ScannerCandidate, provider: string): string {
   if (candidate.catalogProvider && candidate.catalogId && candidate.gameKey) {
-    return `catalog:${normalizedPart(candidate.gameKey)}:${normalizedPart(candidate.catalogProvider)}:${normalizedPart(candidate.catalogId)}`;
+    return `catalog:${normalizedPart(candidate.gameKey)}:${normalizedPart(candidate.catalogProvider)}:${normalizedPart(candidate.catalogId)}:${normalizedPart(candidate.language)}:${normalizedPart(candidate.variant)}`;
   }
   if (candidate.catalogProvider && candidate.catalogId) {
-    return `provider:${normalizedPart(provider)}:catalog:${normalizedPart(candidate.catalogProvider)}:${normalizedPart(candidate.catalogId)}`;
+    return `provider:${normalizedPart(provider)}:catalog:${normalizedPart(candidate.catalogProvider)}:${normalizedPart(candidate.catalogId)}:${normalizedPart(candidate.language)}:${normalizedPart(candidate.variant)}`;
   }
   if (candidate.catalogId) {
-    return `provider:${normalizedPart(provider)}:${normalizedPart(candidate.catalogId)}`;
+    return `provider:${normalizedPart(provider)}:${normalizedPart(candidate.catalogId)}:${normalizedPart(candidate.language)}:${normalizedPart(candidate.variant)}`;
   }
 
   const completePrinting = [

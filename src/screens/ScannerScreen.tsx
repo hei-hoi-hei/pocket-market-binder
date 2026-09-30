@@ -5,6 +5,7 @@ import { useImageAcquisition } from '@/hooks/useImageAcquisition';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useNav } from '@/context/NavContext';
 import { CandidateReview } from '@/components/scanner/CandidateReview';
+import { ReferenceEnrollment } from '@/components/scanner/ReferenceEnrollment';
 import { identifyImageWithProviders } from '@/services/scanner/scannerOrchestration';
 import { createLocalReferenceScannerProvider } from '@/services/scanner/localReferenceMatcher';
 import {
@@ -35,6 +36,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
   const [localResult, setLocalResult] = useState<ScannerIdentificationResult | null>(null);
   const [matching, setMatching] = useState(false);
   const [acquiringImage, setAcquiringImage] = useState(false);
+  const [enrollingReference, setEnrollingReference] = useState(false);
   const nativeCameraAvailable = isNativeCameraAvailable();
   const reviewResult = props.reviewResult === undefined ? localResult : props.reviewResult;
 
@@ -56,6 +58,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
         recognitionController.current?.abort();
         setMatching(false);
         setLocalResult(null);
+        setEnrollingReference(false);
       }
       acceptAcquisition(result);
     };
@@ -74,6 +77,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     acquisitionRequest.current += 1;
     setAcquiringImage(false);
+    setEnrollingReference(false);
     recognitionController.current?.abort();
     setLocalResult(null);
     setMatching(false);
@@ -84,6 +88,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
   const handleClearImage = () => {
     acquisitionRequest.current += 1;
     setAcquiringImage(false);
+    setEnrollingReference(false);
     recognitionController.current?.abort();
     setLocalResult(null);
     setMatching(false);
@@ -94,6 +99,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
     recognitionController.current?.abort();
     setLocalResult(null);
     setMatching(false);
+    setEnrollingReference(false);
     handlePreviewError();
   };
 
@@ -109,6 +115,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
           recognitionController.current?.abort();
           setMatching(false);
           setLocalResult(null);
+          setEnrollingReference(false);
         }
         acceptAcquisition(result);
       }
@@ -264,6 +271,15 @@ export function ScannerScreen(props: ScannerScreenProps) {
               <Trash2 className="w-4 h-4" /> Remove Picture
             </button>
           </div>
+          {!enrollingReference && (
+            <button
+              type="button"
+              onClick={() => setEnrollingReference(true)}
+              className="mt-3 text-sm font-semibold text-gold-700 hover:underline"
+            >
+              Save as recognition reference
+            </button>
+          )}
           <div className="mt-5 rounded-lg border border-gold-300 bg-gold-50 p-3">
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-5 h-5 text-gold-700 shrink-0" />
@@ -286,6 +302,13 @@ export function ScannerScreen(props: ScannerScreenProps) {
               : <><AlertCircle className="w-4 h-4" /> Match Local References</>}
           </button>
         </section>
+      )}
+
+      {enrollingReference && (
+        <ReferenceEnrollment
+          image={image?.blob ?? null}
+          onClose={() => setEnrollingReference(false)}
+        />
       )}
 
       {error && (

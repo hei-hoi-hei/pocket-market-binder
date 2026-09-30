@@ -174,6 +174,8 @@ function identityKey(candidate: ScannerCandidate): string {
     candidate.gameKey ?? '',
     candidate.catalogProvider ?? '',
     candidate.catalogId ?? '',
+    candidate.language ?? '',
+    candidate.variant ?? '',
   ]);
 }
 

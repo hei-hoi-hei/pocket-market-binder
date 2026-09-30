@@ -74,6 +74,7 @@ export interface ScannerRecognitionReference {
 
 export interface ScannerReferenceStore {
   findByIdentity(identity: ScannerCatalogIdentity): Promise<ScannerRecognitionReference[]>;
+  listByIdentity(identity: ScannerCatalogIdentity): Promise<ScannerRecognitionReference[]>;
   listActive(): Promise<ScannerRecognitionReference[]>;
   saveConfirmedReference(
     candidate: ConfirmedScannerCandidate,
@@ -86,6 +87,7 @@ export interface ScannerReferenceStore {
     descriptor: ReferenceDescriptor,
     options: ScannerReferenceCreationOptions,
   ): Promise<ScannerRecognitionReference>;
+  reactivate(referenceId: string): Promise<ScannerRecognitionReference>;
   retire(
     referenceId: string,
     reason?: ScannerReferenceRetirementReason,
@@ -102,10 +104,13 @@ interface StoreDependencies {
 const STORE_ERROR = 'The local scanner reference store could not complete the operation.';
 
 function identityKey(identity: ScannerCatalogIdentity): string {
+  const normalized = (value: string | undefined) => value?.trim().toLowerCase() ?? '';
   return JSON.stringify([
-    identity.gameKey?.trim() ?? '',
-    identity.catalogProvider.trim(),
-    identity.catalogId.trim(),
+    normalized(identity.gameKey),
+    normalized(identity.catalogProvider),
+    normalized(identity.catalogId),
+    normalized(identity.language),
+    normalized(identity.variant),
   ]);
 }
 
@@ -122,6 +127,8 @@ function validateIdentity(identity: ScannerCatalogIdentity): ScannerCatalogIdent
     catalogProvider: identity.catalogProvider.trim(),
     catalogId: identity.catalogId.trim(),
     ...(identity.gameKey ? { gameKey: identity.gameKey.trim() } : {}),
+    ...(identity.language ? { language: identity.language.trim() } : {}),
+    ...(identity.variant ? { variant: identity.variant.trim() } : {}),
   };
 }
 
@@ -349,6 +356,25 @@ function compareReferences(
     left.referenceId.localeCompare(right.referenceId);
 }
 
+async function readReferencesByIdentity(
+  identity: ScannerCatalogIdentity,
+  openDatabase: typeof openLocalDatabase,
+): Promise<ScannerRecognitionReference[]> {
+  const key = identityKey(validateIdentity(identity));
+  const database = await openDatabase();
+  return transaction<ScannerRecognitionReference[]>(database, 'readonly', (store, setResult) => {
+    const request = store.getAll();
+    request.onsuccess = () => {
+      setResult(
+        (request.result as ScannerRecognitionReference[])
+          .filter((reference) => identityKey(reference.identity) === key)
+          .map(cloneReference)
+          .sort(compareReferences),
+      );
+    };
+  });
+}
+
 export function createScannerReferenceStore(
   overrides: Partial<StoreDependencies> = {},
 ): ScannerReferenceStore {
@@ -361,19 +387,12 @@ export function createScannerReferenceStore(
 
   return {
     async findByIdentity(identity) {
-      const key = identityKey(validateIdentity(identity));
-      const database = await dependencies.openDatabase();
-      return transaction<ScannerRecognitionReference[]>(database, 'readonly', (store, setResult) => {
-        const request = store.index('identityKey').getAll(key);
-        request.onsuccess = () => {
-          setResult(
-            (request.result as ScannerRecognitionReference[])
-              .filter((reference) => reference.state === 'active')
-              .map(cloneReference)
-              .sort(compareReferences),
-          );
-        };
-      });
+      return (await readReferencesByIdentity(identity, dependencies.openDatabase))
+        .filter((reference) => reference.state === 'active');
+    },
+
+    async listByIdentity(identity) {
+      return readReferencesByIdentity(identity, dependencies.openDatabase);
     },
 
     async listActive() {
@@ -394,9 +413,22 @@ export function createScannerReferenceStore(
     async saveConfirmedReference(candidate, descriptor, options) {
       const reference = createReference(candidate, descriptor, options, dependencies);
       const database = await dependencies.openDatabase();
-      return transaction<ScannerRecognitionReference>(database, 'readwrite', (store, setResult) => {
-        const request = store.add(reference);
-        request.onsuccess = () => setResult(cloneReference(reference));
+      return transaction<ScannerRecognitionReference>(database, 'readwrite', (store, setResult, fail) => {
+        const request = store.getAll();
+        request.onsuccess = () => {
+          const sameIdentity = (request.result as ScannerRecognitionReference[])
+            .filter((stored) => identityKey(stored.identity) === reference.identityKey);
+          if (sameIdentity.some((stored) => stored.state === 'active')) {
+            fail(new Error('An active recognition reference already exists for this exact printing.'));
+            return;
+          }
+          if (sameIdentity.length > 0) {
+            fail(new Error('An inactive recognition reference already exists; reactivate or replace it explicitly.'));
+            return;
+          }
+          const add = store.add(reference);
+          add.onsuccess = () => setResult(cloneReference(reference));
+        };
       });
     },
 
@@ -407,27 +439,71 @@ export function createScannerReferenceStore(
       }
       const database = await dependencies.openDatabase();
       return transaction<ScannerRecognitionReference>(database, 'readwrite', (store, setResult, fail) => {
-        const request = store.get(referenceId);
+        const request = store.getAll();
         request.onsuccess = () => {
-          const previous = request.result as ScannerRecognitionReference | undefined;
-          if (!previous || previous.state !== 'active') {
-            fail(new Error('Only an active local reference can be replaced.'));
+          const references = request.result as ScannerRecognitionReference[];
+          const previous = references.find((stored) => stored.referenceId === referenceId);
+          if (!previous) {
+            fail(new Error(`Scanner reference not found: ${referenceId}`));
             return;
           }
-          if (previous.identityKey !== reference.identityKey) {
+          if (identityKey(previous.identity) !== reference.identityKey) {
             fail(new Error('A replacement reference must keep the same catalog identity.'));
             return;
           }
           const now = dependencies.now().toISOString();
-          store.put({
-            ...previous,
-            state: 'retired',
-            revision: previous.revision + 1,
-            retiredAt: now,
-            retirementReason: 'replaced',
-          } satisfies ScannerRecognitionReference);
+          references
+            .filter((stored) => identityKey(stored.identity) === reference.identityKey && stored.state === 'active')
+            .forEach((stored) => store.put({
+              ...stored,
+              state: 'retired',
+              revision: stored.revision + 1,
+              retiredAt: now,
+              retirementReason: 'replaced',
+            } satisfies ScannerRecognitionReference));
           const addRequest = store.add(reference);
           addRequest.onsuccess = () => setResult(cloneReference(reference));
+        };
+      });
+    },
+
+    async reactivate(referenceId) {
+      const database = await dependencies.openDatabase();
+      return transaction<ScannerRecognitionReference>(database, 'readwrite', (store, setResult, fail) => {
+        const request = store.get(referenceId);
+        request.onsuccess = () => {
+          const previous = request.result as ScannerRecognitionReference | undefined;
+          if (!previous) {
+            fail(new Error(`Scanner reference not found: ${referenceId}`));
+            return;
+          }
+          const allReferences = store.getAll();
+          allReferences.onsuccess = () => {
+            const sameIdentity = (allReferences.result as ScannerRecognitionReference[])
+              .filter((stored) => identityKey(stored.identity) === identityKey(previous.identity));
+            const otherActive = sameIdentity.some((stored) =>
+              stored.referenceId !== referenceId && stored.state === 'active',
+            );
+            if (otherActive) {
+              fail(new Error('An active recognition reference already exists for this exact printing.'));
+              return;
+            }
+            if (previous.state === 'active') {
+              setResult(cloneReference(previous));
+              return;
+            }
+            if (previous.state !== 'retired') {
+              fail(new Error('Only an inactive recognition reference can be reactivated.'));
+              return;
+            }
+            const reactivated: ScannerRecognitionReference = {
+              ...previous,
+              state: 'active',
+              revision: previous.revision + 1,
+            };
+            const update = store.put(reactivated);
+            update.onsuccess = () => setResult(cloneReference(reactivated));
+          };
         };
       });
     },

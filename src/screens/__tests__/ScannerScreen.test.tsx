@@ -198,6 +198,21 @@ describe('ScannerScreen interactions', () => {
     expect(onCandidateConfirmed).toHaveBeenCalledOnce();
   });
 
+  it('opens local reference enrollment for the selected image without running matching or adding to Binder', async () => {
+    const onCandidateConfirmed = await renderScreen();
+    await provideImage('reference-card.png');
+
+    const saveButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Save as recognition reference'));
+    if (!saveButton) throw new Error('Reference enrollment action was not rendered.');
+    await act(async () => saveButton.click());
+
+    expect(container.textContent).toContain('Selected: reference-card.png');
+    expect(container.textContent).toContain('This helps Pocket Market Binder recognize this card in future scans.');
+    expect(scannerMocks.identify).not.toHaveBeenCalled();
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+  });
+
   it('clearing a selected image removes its candidate review and prevents stale confirmation', async () => {
     const onCandidateConfirmed = await renderScreen();
     await provideImage();

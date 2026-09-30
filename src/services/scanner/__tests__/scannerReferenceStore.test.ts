@@ -50,6 +50,8 @@ function identity(candidate: ScannerCandidate): ScannerCatalogIdentity {
     catalogProvider: candidate.catalogProvider!,
     catalogId: candidate.catalogId!,
     gameKey: candidate.gameKey,
+    language: candidate.language,
+    variant: candidate.variant,
   };
 }
 
@@ -154,23 +156,21 @@ describe('local scanner reference store', () => {
     )).rejects.toThrow(/compact descriptor representation/);
   });
 
-  it('keeps local and account references distinguishable for the same identity', async () => {
+  it('does not create a second active reference for the same identity and ownership scope', async () => {
     const local = await store.saveConfirmedReference(
       confirmScannerCandidate(pikachu),
       descriptor,
       { confirmationMethod: 'candidate-review' },
     );
-    const account = await store.saveConfirmedReference(
+
+    await expect(store.saveConfirmedReference(
       confirmScannerCandidate(pikachu),
       descriptor,
       { confirmationMethod: 'candidate-review', ownershipScope: 'account' },
-    );
+    )).rejects.toThrow(/active recognition reference already exists/);
 
-    await expect(store.findByIdentity(identity(pikachu))).resolves.toEqual([local, account]);
-    await expect(store.listActive()).resolves.toEqual([local, account]);
-    expect(new Set([local.ownershipScope, account.ownershipScope])).toEqual(
-      new Set(['local', 'account']),
-    );
+    await expect(store.findByIdentity(identity(pikachu))).resolves.toEqual([local]);
+    await expect(store.listActive()).resolves.toEqual([local]);
   });
 
   it('lists active local and account-scoped references available in IndexedDB', async () => {
@@ -180,7 +180,7 @@ describe('local scanner reference store', () => {
       { confirmationMethod: 'candidate-review' },
     );
     const account = await store.saveConfirmedReference(
-      confirmScannerCandidate(pikachu),
+      confirmScannerCandidate({ ...pikachu, catalogId: 'card-26' }),
       descriptor,
       { confirmationMethod: 'candidate-review', ownershipScope: 'account' },
     );
@@ -277,19 +277,149 @@ describe('local scanner reference store', () => {
     await expect(store.listActive()).resolves.toEqual([]);
   });
 
-  it('allows multiple local references for one confirmed identity', async () => {
+  it('treats an active duplicate as a safe no-op without replacing its descriptor', async () => {
     const first = await store.saveConfirmedReference(
       confirmScannerCandidate(pikachu),
       descriptor,
       { confirmationMethod: 'candidate-review' },
     );
-    const second = await store.saveConfirmedReference(
+    await expect(store.saveConfirmedReference(
       confirmScannerCandidate(pikachu),
       { ...descriptor, value: 'fedcba9876543210' },
       { confirmationMethod: 'manual-catalog-search', captureConditions: ['top-loader'] },
+    )).rejects.toThrow(/active recognition reference already exists/);
+
+    await expect(store.findByIdentity(identity(pikachu))).resolves.toEqual([first]);
+    await expect(store.listByIdentity(identity(pikachu))).resolves.toEqual([first]);
+    expect(first.descriptor).toEqual(descriptor);
+  });
+
+  it('treats a different variant as a different exact reference identity', async () => {
+    const holo = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const normal = await store.saveConfirmedReference(
+      confirmScannerCandidate({ ...pikachu, variant: 'normal' }),
+      { ...descriptor, value: 'fedcba9876543210' },
+      { confirmationMethod: 'manual-catalog-search' },
     );
 
-    await expect(store.findByIdentity(identity(pikachu))).resolves.toEqual([first, second]);
+    await expect(store.findByIdentity(identity(pikachu))).resolves.toEqual([holo]);
+    await expect(store.findByIdentity({ ...identity(pikachu), variant: 'normal' }))
+      .resolves.toEqual([normal]);
+    await expect(store.listActive()).resolves.toHaveLength(2);
+  });
+
+  it('lists inactive references without treating them as active matches', async () => {
+    const saved = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const retired = await store.retire(saved.referenceId);
+
+    await expect(store.listByIdentity(identity(pikachu))).resolves.toEqual([retired]);
+    await expect(store.findByIdentity(identity(pikachu))).resolves.toEqual([]);
+  });
+
+  it('does not create a new reference when an inactive one already exists', async () => {
+    const saved = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const retired = await store.retire(saved.referenceId);
+
+    await expect(store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      { ...descriptor, value: 'fedcba9876543210' },
+      { confirmationMethod: 'manual-catalog-search' },
+    )).rejects.toThrow(/inactive recognition reference already exists/);
+    await expect(store.listByIdentity(identity(pikachu))).resolves.toEqual([retired]);
+  });
+
+  it('reactivates the existing reference while preserving its descriptor and provenance', async () => {
+    const saved = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const retired = await store.retire(saved.referenceId);
+
+    const reactivated = await store.reactivate(saved.referenceId);
+
+    expect(reactivated).toMatchObject({
+      referenceId: saved.referenceId,
+      state: 'active',
+      revision: 3,
+      descriptor,
+      provenance: retired.provenance,
+      retiredAt: retired.retiredAt,
+      retirementReason: retired.retirementReason,
+    });
+    await expect(store.listActive()).resolves.toEqual([reactivated]);
+  });
+
+  it('replaces an inactive reference without creating multiple active matches', async () => {
+    const saved = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const retired = await store.retire(saved.referenceId);
+
+    const replacement = await store.replace(
+      retired.referenceId,
+      confirmScannerCandidate(pikachu),
+      { ...descriptor, value: 'fedcba9876543210' },
+      { confirmationMethod: 'manual-catalog-search' },
+    );
+    const references = await store.listByIdentity(identity(pikachu));
+
+    expect(replacement).toMatchObject({ state: 'active', descriptor: { value: 'fedcba9876543210' } });
+    expect(references.filter((reference) => reference.state === 'active')).toEqual([replacement]);
+    expect(references.find((reference) => reference.referenceId === saved.referenceId))
+      .toMatchObject({ state: 'retired', descriptor, provenance: retired.provenance });
+  });
+
+  it('keeps only one active reference when replacement targets an active record', async () => {
+    const first = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    const replacement = await store.replace(
+      first.referenceId,
+      confirmScannerCandidate(pikachu),
+      { ...descriptor, value: 'fedcba9876543210' },
+      { confirmationMethod: 'manual-catalog-search' },
+    );
+    const references = await store.listByIdentity(identity(pikachu));
+
+    expect(references.filter((reference) => reference.state === 'active')).toEqual([replacement]);
+    expect(references.find((reference) => reference.referenceId === first.referenceId))
+      .toMatchObject({ state: 'retired', retirementReason: 'replaced' });
+  });
+
+  it('does not reactivate an inactive record when another active reference exists', async () => {
+    const original = await store.saveConfirmedReference(
+      confirmScannerCandidate(pikachu),
+      descriptor,
+      { confirmationMethod: 'candidate-review' },
+    );
+    await store.retire(original.referenceId);
+    const replacement = await store.replace(
+      original.referenceId,
+      confirmScannerCandidate(pikachu),
+      { ...descriptor, value: 'fedcba9876543210' },
+      { confirmationMethod: 'manual-catalog-search' },
+    );
+
+    await expect(store.reactivate(original.referenceId))
+      .rejects.toThrow(/active recognition reference already exists/);
+    await expect(store.listActive()).resolves.toEqual([replacement]);
   });
 
   it('preserves user-confirmation provenance and capture metadata', async () => {
