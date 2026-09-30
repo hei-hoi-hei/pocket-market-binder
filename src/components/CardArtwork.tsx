@@ -30,7 +30,8 @@ export function CardArtwork({ card, className = '', bare = false, quality = 'low
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const requestKey = JSON.stringify([
     card.id,
-    card.identity?.tcgdexId,
+    card.identity,
+    card.catalogArtwork,
     card.imageUrlLow,
     card.imageUrlHigh,
     quality,

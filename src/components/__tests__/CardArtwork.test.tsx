@@ -102,4 +102,42 @@ describe('CardArtwork generated fallback', () => {
     expect(resolve).toHaveBeenNthCalledWith(1, card, 'high', []);
     expect(resolve).toHaveBeenNthCalledWith(2, card, 'high', [primaryUrl]);
   });
+
+  it('re-resolves when canonical identity or catalog artwork reference changes', async () => {
+    const identityUpdatedCard: Card = {
+      ...card,
+      identity: {
+        ...card.identity,
+        providerIds: { tcgdex: ['base1-1'], alternateCatalog: ['set-a-1'] },
+        language: 'en',
+      },
+    };
+    const artworkUpdatedCard: Card = {
+      ...identityUpdatedCard,
+      catalogArtwork: {
+        provider: 'alternateCatalog',
+        providerCardId: 'set-a-1',
+        printingIdentity: identityUpdatedCard.identity,
+        imageUrls: { high: 'https://images.example/set-a-1.webp' },
+      },
+    };
+    const resolve = vi.spyOn(artworkService, 'resolve')
+      .mockResolvedValue(availableArtwork('https://images.example/card.webp', 'catalog', 'primary'));
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => root?.render(createElement(CardArtwork, { card })));
+    await vi.waitFor(() => expect(resolve).toHaveBeenCalledTimes(1));
+
+    await act(async () => root?.render(createElement(CardArtwork, { card: identityUpdatedCard })));
+    await vi.waitFor(() => expect(resolve).toHaveBeenCalledTimes(2));
+
+    await act(async () => root?.render(createElement(CardArtwork, { card: artworkUpdatedCard })));
+    await vi.waitFor(() => expect(resolve).toHaveBeenCalledTimes(3));
+
+    expect(resolve).toHaveBeenNthCalledWith(2, identityUpdatedCard, 'low', []);
+    expect(resolve).toHaveBeenNthCalledWith(3, artworkUpdatedCard, 'low', []);
+  });
 });
