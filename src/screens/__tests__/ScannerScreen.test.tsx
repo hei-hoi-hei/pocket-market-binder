@@ -192,6 +192,10 @@ describe('ScannerScreen interactions', () => {
       expect.objectContaining({ catalogId: 'card-25' }),
     );
     expect(isConfirmedScannerCandidate(onCandidateConfirmed.mock.calls[0][0])).toBe(true);
+    expect(confirmButton.disabled).toBe(true);
+    expect(candidateRadio.disabled).toBe(true);
+    await act(async () => confirmButton.click());
+    expect(onCandidateConfirmed).toHaveBeenCalledOnce();
   });
 
   it('clearing a selected image removes its candidate review and prevents stale confirmation', async () => {

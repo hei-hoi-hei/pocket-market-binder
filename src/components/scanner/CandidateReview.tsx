@@ -104,6 +104,7 @@ export function CandidateReview({
   const selectedCandidate = getSelectedCandidate(candidates, state.selectedIndex);
 
   const confirmSelection = () => {
+    if (state.confirmedIndex !== null) return;
     if (!confirmCandidateReviewSelection(candidates, state.selectedIndex, onConfirm)) return;
     dispatch({ type: 'confirm' });
   };
@@ -169,6 +170,7 @@ export function CandidateReview({
                     name="scanner-candidate"
                     value={index}
                     checked={state.selectedIndex === index}
+                    disabled={state.confirmedIndex !== null}
                     onChange={() => dispatch({ type: 'select', index })}
                     className="mt-1 accent-leather-700"
                   />
@@ -190,7 +192,7 @@ export function CandidateReview({
           <button
             type="button"
             onClick={confirmSelection}
-            disabled={!selectedCandidate}
+            disabled={!selectedCandidate || state.confirmedIndex !== null}
             className="mt-4 w-full rounded-lg bg-leather-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-leather-800 disabled:cursor-not-allowed disabled:bg-leather-300"
           >
             Confirm selected candidate
@@ -198,7 +200,7 @@ export function CandidateReview({
           {state.confirmedIndex !== null && (
             <p className="mt-3 flex items-start gap-2 rounded-lg border border-gold-300 bg-gold-50 p-3 text-sm text-leather-700" role="status">
               <CheckCircle2 className="h-5 w-5 shrink-0 text-gold-700" />
-              Candidate confirmed for a future catalog identity step. No catalog identity was resolved and no collection was changed.
+              Candidate confirmed. Only supported catalog identities can be added to the Binder, and only after this explicit confirmation.
             </p>
           )}
         </>

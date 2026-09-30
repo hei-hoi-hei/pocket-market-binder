@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NavProvider, useNav } from '@/context/NavContext';
-import { CollectionProvider } from '@/context/CollectionContext';
+import { CollectionProvider, useCollection } from '@/context/CollectionContext';
 import { BottomNav } from '@/components/BottomNav';
 import { TopNav } from '@/components/TopNav';
 import { SettingsModal } from '@/components/SettingsModal';
@@ -12,15 +12,19 @@ import { WishlistScreen } from '@/screens/WishlistScreen';
 import { CartScreen } from '@/screens/CartScreen';
 import { ScannerScreen } from '@/screens/ScannerScreen';
 import { subscribeToRestoredCameraAcquisition } from '@/services/scanner/capacitorCameraAcquisition';
+import { isConfirmedScannerCandidate } from '@/services/scanner/types';
+import type { ConfirmedScannerCandidate } from '@/services/scanner/types';
 
-function ScreenRouter() {
+function ScreenRouter({ onScannerCandidateConfirmed }: {
+  onScannerCandidateConfirmed: (candidate: ConfirmedScannerCandidate) => void;
+}) {
   const { screen } = useNav();
 
   switch (screen) {
     case 'home': return <HomeScreen />;
     case 'binder': return <BinderScreen />;
     case 'search': return <SearchScreen />;
-    case 'scanner': return <ScannerScreen />;
+    case 'scanner': return <ScannerScreen onCandidateConfirmed={onScannerCandidateConfirmed} />;
     case 'detail': return <CardDetailScreen />;
     case 'wishlist': return <WishlistScreen />;
     case 'cart': return <CartScreen />;
@@ -31,6 +35,22 @@ function ScreenRouter() {
 function AppShell() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { go } = useNav();
+  const { addToBinder } = useCollection();
+
+  const handleScannerCandidateConfirmed = useCallback((candidate: ConfirmedScannerCandidate) => {
+    const fromLocalReference = candidate.provider === 'local-reference' ||
+      candidate.providers?.includes('local-reference');
+    if (
+      !isConfirmedScannerCandidate(candidate) ||
+      !fromLocalReference ||
+      candidate.catalogProvider !== 'tcgdex'
+    ) return;
+    const cardId = candidate.catalogId?.trim();
+    if (!cardId) return;
+    void addToBinder(cardId).catch((error: unknown) => {
+      console.error('Unable to add the confirmed scanner candidate to the Binder.', error);
+    });
+  }, [addToBinder]);
 
   useEffect(() => subscribeToRestoredCameraAcquisition(() => go('scanner')), [go]);
 
@@ -43,7 +63,7 @@ function AppShell() {
 
       {/* Main content — responsive container widths */}
       <main className="mx-auto w-full max-w-md px-4 pt-4 pb-24 flex-1 md:max-w-3xl lg:max-w-6xl lg:pb-12 xl:max-w-screen-xl 2xl:max-w-screen-2xl">
-        <ScreenRouter />
+        <ScreenRouter onScannerCandidateConfirmed={handleScannerCandidateConfirmed} />
       </main>
 
       <BottomNav onOpenSettings={() => setIsSettingsOpen(true)} />

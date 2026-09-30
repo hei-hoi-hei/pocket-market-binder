@@ -60,12 +60,13 @@ function isValidFixture(value: unknown): value is ScannerBenchmarkFixture {
   const expectedOutcome = value.expectedOutcome ?? 'match';
   if (expectedOutcome !== 'match' && expectedOutcome !== 'no-match') return false;
   if (
-    REQUIRED_TEXT_FIELDS.filter((field) => field !== 'id')
+    REQUIRED_TEXT_FIELDS.filter((field) => field !== 'id' && field !== 'setCode')
       .some((field) => typeof value[field] !== 'string' || !value[field].trim())
   ) {
     return false;
   }
   if (value.id !== undefined && (typeof value.id !== 'string' || !value.id.trim())) return false;
+  if (typeof value.setCode !== 'string') return false;
   if (expectedOutcome === 'match' && !value.id) return false;
   if (expectedOutcome === 'no-match' && (!value.imagePath || value.id !== undefined)) return false;
   if (OPTIONAL_TEXT_FIELDS.some((field) =>

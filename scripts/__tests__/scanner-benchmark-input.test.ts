@@ -73,6 +73,16 @@ describe('scanner benchmark inputs', () => {
     }])).toThrow(/valid expected clues and image metadata/);
   });
 
+  it('accepts an intentionally unavailable set-code clue without fabricating a value', () => {
+    expect(parseScannerBenchmarkFixtures([{
+      ...localFixture,
+      setCode: '',
+    }])).toEqual([{
+      ...localFixture,
+      setCode: '',
+    }]);
+  });
+
   it('scores match rank and no-match false positives from candidate IDs', () => {
     expect(assessScannerCandidates('match', 'card-2', ['card-1', 'card-2', 'card-3']))
       .toEqual({
