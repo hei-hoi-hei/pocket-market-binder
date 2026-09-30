@@ -22,7 +22,7 @@ Active listings, sellers/stores, asking prices, and direct purchase links are V2
 - **Styling:** Tailwind CSS (with custom design tokens for parchment, leather, and energy types)
 - **Icons:** Lucide React
 - **Storage:** Native IndexedDB (via a custom `KVStore` abstraction layer with automatic legacy `localStorage` migration); a PMB shared-reference backend/API is a V1 architecture requirement, not yet implemented
-- **Catalog/Artwork API:** TCGdex API directly today, with hybrid in-memory and IndexedDB caching; the planned PMB API/cache will become the stable client-facing shared reference-data layer
+- **Catalog/Artwork API:** TCGdex API directly today, with hybrid in-memory and IndexedDB caching; TCGdex is the current configured provider, not the permanent identity authority
 
 ## Major Product Goals
 - **Local-First Architecture:** User collection data is fully owned and stored client-side in IndexedDB.
@@ -30,7 +30,7 @@ Active listings, sellers/stores, asking prices, and direct purchase links are V2
 - **V1 Backup/Restore:** Backup preserves user-owned data and schema/version independently of shared/disposable caches. Manual import/export exists; validated/versioned restore and automatic/remote backup where feasible remain incomplete.
 - **Operating Cost Target:** ₱0 (no paid APIs, paid databases, authentication servers, or paid hosting).
 - **Offline Resilience:** Local collection data remains available without network access. Uncached catalog cards and live external pricing require connectivity; offline completeness is not implied.
-- **Robust Pricing Engine:** Aggregates market observations through a versioned median calculation algorithm with multi-factor confidence scoring.
+- **Robust Pricing Engine:** Aggregates compatible market observations through a median calculation with multi-factor confidence scoring. Transaction classes remain distinct; default market value uses `price-guide` only.
 
 ## Important Constraints
 - **Zero Cost:** Must operate entirely at ₱0. Free tiers of public APIs are permitted only when their terms allow.
