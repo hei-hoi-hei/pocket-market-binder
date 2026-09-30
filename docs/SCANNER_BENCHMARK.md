@@ -60,6 +60,80 @@ Choose labels that describe the actual photo/card, not a quality judgment. Inclu
 
 The report includes total fixture/photo rows, local-photo count, distinct physical specimens, devices, collectors, layouts, expected catalog identities, known-match/no-match denominators, candidate-bearing photos, and counts by `reference`, `held-out`, and `unassigned` split. It reports correct-candidate presence, correct top-1 matches, no-candidate results, top-rank score ties, false positives, and top-1 mismatches. Per-condition groups use each `captureConditions` label; when tags are absent they use the free-text `condition` field. Per-device, per-collector, and per-layout groups are also reported using their opaque IDs/labels. Each group includes raw photo/specimen counts and outcome counts. Catalog identities occurring in both reference and held-out splits are counted so overlap is visible.
 
+### Private corpus starter
+
+Create the corpus outside the repository, for example:
+
+```text
+C:\Users\<user>\Documents\PocketMarketBinder-ScannerCorpus\
+  manifest.json
+  photos\
+    device-01\
+      specimen-0001-photo-01.jpg
+```
+
+Copy and edit the placeholder-only manifest below directly at that external location before adding real metadata. It is a schema example, not benchmark data: replace every `REPLACE_*` value and the placeholder dimensions/paths. Do not save a populated manifest or any photo under this repository.
+
+```json
+[
+  {
+    "expectedOutcome": "match",
+    "id": "REPLACE_WITH_TCGDEX_ID",
+    "name": "REPLACE_WITH_EXPECTED_CARD_NAME",
+    "collectorNumber": "REPLACE_WITH_COLLECTOR_NUMBER",
+    "setCode": "REPLACE_WITH_SET_CODE",
+    "layout": "REPLACE_WITH_LAYOUT_OR_ERA",
+    "condition": "REPLACE_WITH_CONCISE_CAPTURE_DESCRIPTION",
+    "captureConditions": ["REPLACE_WITH_CAPTURE_TAG"],
+    "cardCharacteristics": ["REPLACE_WITH_CARD_TAG"],
+    "physicalCardId": "specimen-0001",
+    "captureDeviceId": "device-01",
+    "collectorId": "collector-01",
+    "split": "reference",
+    "language": "en",
+    "imagePath": "photos/device-01/specimen-0001-photo-01.jpg",
+    "imageWidth": 1,
+    "imageHeight": 1
+  },
+  {
+    "expectedOutcome": "no-match",
+    "name": "REPLACE_WITH_GROUND_TRUTH_CARD_NAME",
+    "collectorNumber": "REPLACE_WITH_GROUND_TRUTH_NUMBER",
+    "setCode": "",
+    "layout": "REPLACE_WITH_LAYOUT_OR_ERA",
+    "condition": "REPLACE_WITH_CONCISE_CAPTURE_DESCRIPTION",
+    "captureConditions": ["REPLACE_WITH_CAPTURE_TAG"],
+    "physicalCardId": "specimen-0002",
+    "captureDeviceId": "device-02",
+    "collectorId": "collector-02",
+    "split": "held-out",
+    "language": "en",
+    "imagePath": "photos/device-02/specimen-0002-photo-01.jpg",
+    "imageWidth": 1,
+    "imageHeight": 1
+  }
+]
+```
+
+The `no-match` form deliberately omits `id`; keep the expected name and collector number as ground truth, and use an empty `setCode` only when the set is unknown. A match row needs its expected TCGdex catalog ID in `id`. Image paths are relative to `manifest.json`; width and height are actual pixel dimensions. The starter values are not valid evidence until replaced with real labels, dimensions, and image files.
+
+Collection checklist:
+
+- Use at least 60 distinct `physicalCardId` values overall. A repeat capture keeps the same ID and does not increase the distinct-card count.
+- Put at least 20 distinct physical cards in `held-out`; at exactly 60 specimens, 40 `reference` and 20 `held-out` is a simple split. Never use one specimen or matched catalog ID in both splits.
+- Use at least two opaque `captureDeviceId` labels and two opaque `collectorId` labels. Do not use names, serial numbers, or location details.
+- Cover at least six distinct `layout`/era labels.
+- Cover at least 10 distinct specimens in each material capture-condition group: mixed/dim lighting, glare/shadow, rotation/perspective, clutter/background, and reduced image quality. Tags may overlap; check each group's `distinctPhysicalCards`, not just its photo count. `image-quality-reduced` is an example custom tag.
+- Include genuine readable and partially obscured examples, finishes/variants, similar-name/art/number neighbors, and labeled no-match/unsupported specimens. The roadmap sets no numeric no-match minimum; report that count separately and include no-match examples in evaluation.
+
+Keep the populated manifest, original photos, any notes linking opaque labels to people/devices, and benchmark reports outside Git. The runner writes its report under the ignored repository `benchmark-results/` directory; that report contains OCR text and expected identities, so do not force-add it. It reads local photos without uploading image bytes, but sends OCR text to TCGdex for its current catalog search. Check `git status --short` before staging any project work.
+
+Run the private manifest with:
+
+```text
+npm run benchmark:scanner -- --fixtures "C:\Users\<user>\Documents\PocketMarketBinder-ScannerCorpus\manifest.json"
+```
+
 `ambiguousTopRank` means the first two text-matcher candidates have exactly equal scores; it is a deterministic tie indicator, not calibrated confidence, human adjudication, or a general provider uncertainty result. `noCandidateResults` is also a raw count: `matchingStatus` distinguishes no OCR query from `no-candidates-or-tcgdex-failure`, but the latter still conflates a completed empty search with a TCGdex request failure. Do not treat that status as a confirmed no-match.
 
 No representative real card photographs or real-photo recognition results are checked into the repository. Do not commit private collection photos or manifests containing sensitive collection details. Keep generated reports and OCR caches in the ignored `benchmark-results/` and `benchmark-cache/` directories; custom image paths/manifests remain the contributor's responsibility to keep out of Git. Reports identify local images by filename only, but OCR text and expected identities may still be sensitive.
