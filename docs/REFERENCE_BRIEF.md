@@ -282,19 +282,32 @@ The application should remain useful when external services are unavailable.
 
 The V1 data model distinguishes three separate concerns:
 
-1. **User-owned durable state:** Binder, Wishlist, Cart, quantities, notes, metadata, and preferences remain owned by the device in IndexedDB and available offline.
-2. **Shared reference data:** external providers supply reusable catalog, pricing, artwork, and other reference data through a PMB backend/API and shared cache. The backend normalizes and caches eligible data, preserves provenance/freshness, and provides a stable client API; it is not the Binder authority.
-3. **Backup/restore:** a separate V1 pipeline preserves user-owned data and schema/version for recovery. Manual export/import exists; robust versioned restore and automatic/remote backup where feasible remain to be completed. A backup need not contain every cached image or disposable provider response.
+1. **User-owned durable state:** Binder, Wishlist, Cart, quantities, notes, metadata, and preferences remain owned by the device in IndexedDB and available offline; local collection state is canonical.
+2. **Reference data:** provider adapters and local caches supply reusable catalog, pricing, artwork, and other reference data. A PMB backend/shared cache is an optional future extension, not a V1 requirement or Binder authority.
+3. **Local backup/restore:** manual export/import of user-owned data is supported separately from disposable caches. Robust versioned restore remains incomplete; remote/automatic backup and cloud sync are optional future extensions, not V1 requirements.
+
+Current local-first V1 paths:
 
 ```text
-External Providers → PMB Backend/API → Shared Reference Cache → User Device
-                                                           ↓
-                                                   Local IndexedDB → UI
+External Provider(s) → Provider Adapter → App / User Device
+                                             ↕
+                                   Local Reference Cache
+                                     (IndexedDB)
 
-User-owned IndexedDB data → versioned backup/export or remote backup
+Binder / Wishlist / Cart → Local IndexedDB → UI
+User-owned data → Manual export/import
 ```
 
-Cold requests may go through PMB to an upstream provider; warm server-cache and warm device-cache paths should avoid unnecessary upstream waits. Already-cached collection/reference data should remain usable during internet, backend, or provider outages. Backend/shared cache is not user backup; IndexedDB collection state is not disposable cache; external providers are not the application's source of truth.
+Cold reference requests use the provider adapter and may populate a local cache; warm reference requests may use that device cache. The Binder, Wishlist, and Cart remain user-owned canonical data in local IndexedDB, separate from disposable/reference caches. Manual export/import is the current backup path; robust versioned restore remains incomplete.
+
+Possible future extensions, not current V1 request or backup paths:
+
+```text
+Provider Adapters → Optional PMB Backend / Shared Reference Cache
+User-owned local data → Optional Remote / Automatic Backup
+```
+
+A future shared cache would not be user backup or the collection source of truth. Remote backup and cloud sync are separate optional future decisions. External providers are information sources, not the application's source of truth.
 
 Shared artwork may only be cached or served when source terms and technical conditions permit. Provider hosting alone is not redistribution permission; preserve exact-printing evidence, provenance, and explicit eligible/unresolved/ineligible usage status.
 
@@ -304,19 +317,29 @@ Shared artwork may only be cached or served when source terms and technical cond
 
 External providers should be replaceable where practical.
 
-For shared reference data in the approved V1 architecture, prefer:
+The current provider-neutral boundary is the device-side adapter layer:
 
 ```text
 Application / User Device
      ↓
-PMB Backend / API
+Provider Adapter
+     ↓
+External Provider(s)
+```
+
+The application can use replaceable provider interfaces without requiring a server. The current implementation uses local reference caches and provider adapters; TCGdex is a configured provider, not a permanent architecture authority. A backend/shared cache could be added as an optional future layer:
+
+```text
+Application / User Device
+     ↓
+Optional Future PMB Backend / API
      ↓
 Provider Interface
      ↓
 External Provider(s)
 ```
 
-The PMB backend/API is the stable application-facing reference-data boundary; it can use replaceable provider interfaces upstream. Provider-neutral means the application is not coupled to one specific external provider, not that the client calls providers directly. IndexedDB remains the local source of truth for the user's Binder, Wishlist, Cart, and other user-owned collection state; the backend/shared cache does not own that state.
+Provider-neutral means the application is not coupled to one specific external provider. Whether adapters call providers from the device or through optional future server infrastructure does not change the ownership boundary: IndexedDB remains the local source of truth for the user's Binder, Wishlist, Cart, and other user-owned collection state.
 
 Providers supply information.
 
