@@ -198,6 +198,51 @@ describe('ScannerScreen interactions', () => {
     expect(onCandidateConfirmed).toHaveBeenCalledOnce();
   });
 
+  it('offers explicit local feedback after candidate results without confirming the candidate', async () => {
+    const onCandidateConfirmed = await renderScreen();
+    await provideImage();
+    const matchButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    if (!matchButton) throw new Error('Local matching action was not rendered.');
+    await act(async () => { matchButton.click(); await Promise.resolve(); });
+
+    expect(container.textContent).toContain('Candidate Review');
+    expect(container.textContent).toContain('Report this scanner result');
+    expect(container.textContent).toContain('The photo is not attached, stored, or sent.');
+    expect([...container.querySelectorAll('button')].map((button) => button.textContent))
+      .toContain('Correct');
+    expect([...container.querySelectorAll('button')].map((button) => button.textContent))
+      .toContain('Wrong card');
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+
+    const cancelReview = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Cancel review'));
+    if (!cancelReview) {
+      throw new Error(`Candidate review cancel action was not rendered. Buttons: ${[...container.querySelectorAll('button')].map((button) => button.textContent).join(' | ')}`);
+    }
+    await act(async () => cancelReview.click());
+    expect(container.textContent).not.toContain('Candidate Review');
+    expect([...container.querySelectorAll('button')].map((button) => button.textContent))
+      .toContain('Cancelled');
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a normalized processing-error result with explicit feedback after a matcher exception', async () => {
+    scannerMocks.identify.mockRejectedValueOnce(new Error('private raw matcher failure'));
+    await renderScreen();
+    await provideImage();
+    const matchButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    if (!matchButton) throw new Error('Local matching action was not rendered.');
+    await act(async () => { matchButton.click(); await Promise.resolve(); });
+
+    expect(container.textContent).toContain('Recognition could not be completed: Recognition could not be completed.');
+    expect(container.textContent).not.toContain('private raw matcher failure');
+    expect(container.textContent).toContain('Report this scanner result');
+    expect([...container.querySelectorAll('button')].map((button) => button.textContent))
+      .toContain('Error');
+  });
+
   it('opens local reference enrollment for the selected image without running matching or adding to Binder', async () => {
     const onCandidateConfirmed = await renderScreen();
     await provideImage('reference-card.png');

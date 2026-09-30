@@ -6,6 +6,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { useNav } from '@/context/NavContext';
 import { CandidateReview } from '@/components/scanner/CandidateReview';
 import { ReferenceEnrollment } from '@/components/scanner/ReferenceEnrollment';
+import { ScannerFeedback } from '@/components/scanner/ScannerFeedback';
 import { identifyImageWithProviders } from '@/services/scanner/scannerOrchestration';
 import { createLocalReferenceScannerProvider } from '@/services/scanner/localReferenceMatcher';
 import {
@@ -20,6 +21,7 @@ import type {
   ConfirmedScannerCandidate,
   ScannerIdentificationResult,
 } from '@/services/scanner/types';
+import { getScannerFeedbackMatcherId } from '@/services/scanner/scannerFeedback';
 
 interface ScannerScreenProps {
   reviewResult?: ScannerIdentificationResult | null;
@@ -33,7 +35,14 @@ export function ScannerScreen(props: ScannerScreenProps) {
   const acquisitionRequest = useRef(0);
   const { image, error, selectFile, acceptAcquisition, clearImage, handlePreviewError } = useImageAcquisition();
   const [reviewDismissed, setReviewDismissed] = useState(false);
+  const [reviewCancelled, setReviewCancelled] = useState(false);
   const [localResult, setLocalResult] = useState<ScannerIdentificationResult | null>(null);
+  const [localResultDurationMs, setLocalResultDurationMs] = useState<number | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{
+    previewUrl: string;
+    width: number;
+    height: number;
+  } | null>(null);
   const [matching, setMatching] = useState(false);
   const [acquiringImage, setAcquiringImage] = useState(false);
   const [enrollingReference, setEnrollingReference] = useState(false);
@@ -42,6 +51,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
 
   useEffect(() => {
     setReviewDismissed(false);
+    setReviewCancelled(false);
   }, [reviewResult]);
 
   useEffect(() => () => {
@@ -80,6 +90,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
     setEnrollingReference(false);
     recognitionController.current?.abort();
     setLocalResult(null);
+    setLocalResultDurationMs(null);
     setMatching(false);
     selectFile(event.target.files?.[0] ?? null);
     event.target.value = '';
@@ -91,6 +102,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
     setEnrollingReference(false);
     recognitionController.current?.abort();
     setLocalResult(null);
+    setLocalResultDurationMs(null);
     setMatching(false);
     clearImage();
   };
@@ -98,6 +110,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
   const handleImagePreviewError = () => {
     recognitionController.current?.abort();
     setLocalResult(null);
+    setLocalResultDurationMs(null);
     setMatching(false);
     setEnrollingReference(false);
     handlePreviewError();
@@ -138,12 +151,27 @@ export function ScannerScreen(props: ScannerScreenProps) {
     recognitionController.current?.abort();
     const controller = new AbortController();
     recognitionController.current = controller;
+    const startedAt = performance.now();
     setMatching(true);
     setLocalResult(null);
+    setLocalResultDurationMs(null);
     try {
       const provider = createLocalReferenceScannerProvider();
       const result = await identifyImageWithProviders([provider], image.blob, controller.signal);
-      if (!controller.signal.aborted) setLocalResult(result);
+      if (!controller.signal.aborted) {
+        setLocalResult(result);
+        setLocalResultDurationMs(Math.max(0, Math.round(performance.now() - startedAt)));
+      }
+    } catch {
+      if (!controller.signal.aborted) {
+        setLocalResult({
+          status: 'error',
+          message: 'Recognition could not be completed.',
+          retryable: true,
+          source: 'local-reference',
+        });
+        setLocalResultDurationMs(Math.max(0, Math.round(performance.now() - startedAt)));
+      }
     } finally {
       if (!controller.signal.aborted) setMatching(false);
     }
@@ -229,6 +257,11 @@ export function ScannerScreen(props: ScannerScreenProps) {
               src={image.previewUrl}
               alt="Selected card preview"
               className="w-full h-full object-contain"
+              onLoad={(event) => setImageDimensions({
+                previewUrl: image.previewUrl,
+                width: event.currentTarget.naturalWidth,
+                height: event.currentTarget.naturalHeight,
+              })}
               onError={handleImagePreviewError}
             />
           </div>
@@ -324,10 +357,28 @@ export function ScannerScreen(props: ScannerScreenProps) {
           onRetry={() => {
             setReviewDismissed(true);
             setLocalResult(null);
+            setLocalResultDurationMs(null);
             openFilePicker();
           }}
-          onCancel={() => setReviewDismissed(true)}
+          onCancel={() => {
+            setReviewDismissed(true);
+            setReviewCancelled(true);
+          }}
           onManualSearch={() => go('search')}
+        />
+      )}
+
+      {reviewResult && (
+        <ScannerFeedback
+          result={reviewResult}
+          matcherId={getScannerFeedbackMatcherId(reviewResult)}
+          processingDurationMs={props.reviewResult === undefined ? localResultDurationMs ?? undefined : undefined}
+          imageDimensions={image && imageDimensions?.previewUrl === image.previewUrl
+            ? { width: imageDimensions.width, height: imageDimensions.height }
+            : undefined}
+          allowCancelled={reviewCancelled || (
+            reviewResult.status === 'error' && reviewResult.message === 'Recognition was cancelled.'
+          )}
         />
       )}
 
