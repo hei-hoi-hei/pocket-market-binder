@@ -315,10 +315,10 @@ V1 is **Card Reference + Market Value + Acquisition Calculator**. The local virt
 | IndexedDB collection source of truth | Implemented | Preserve | User data must remain local-first |
 | Manual catalog search and binder addition | Implemented | Preserve | Must remain independent of scanner |
 | PMB backend/API shared reference cache | Optional future extension | Separate future architecture decision | Could normalize/cache reusable external reference data; not required for V1 and never owns collection state |
-| Manual backup/restore | Partial | Data portability phase | Manual export/import exists; strengthen local validation/restore; automatic/remote backup is optional future work and must not require V1 backend/login |
+| Manual backup/restore | Partial | Data portability follow-up | Version 1.0.0 payload validation and atomic local restore are implemented; migration support remains. Automatic/remote backup is optional future work and must not require V1 backend/login |
 | Catalog provider abstraction | Partial | Provider clarification | Existing registry is not a source resolver |
 | Multiple catalog providers | Missing / committed | Provider phase | Requires resolver, priority, fallback, and enrichment decisions |
-| Pricing aggregation and cache | Partial / substantially present | Pricing phase | Engine exists; live adapters and TCGdex schema need reconciliation |
+| Pricing aggregation and cache | Partial / substantially present | Preserve current foundation; source coverage remains gated | Engine and fixture-tested TCGdex schema mapping exist; TCGdex is the only configured live pricing adapter |
 | Multi-source pricing participation and comparable-observation policy | Partial foundation; source coverage remains limited | Pricing decision/implementation phase | Default uses price-guide class only; explicit class selection, provenance, and comparability are enforced |
 | Artwork provider-pool boundary and deterministic candidate selection | Foundation implemented; TCGdex only | Preserve foundation; secondary-source phase remains gated | Exact-printing evidence required; usage status explicit; no secondary source approved |
 | Provider-neutral scanner recognition boundary | Implemented | Phase A | Validates local image input and normalizes unresolved provider candidates; no recognition engine is selected |

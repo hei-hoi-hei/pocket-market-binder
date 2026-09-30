@@ -9,6 +9,7 @@
 export interface KVStore {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T): Promise<void>;
+  setMany(entries: ReadonlyArray<readonly [key: string, value: unknown]>): Promise<void>;
   remove(key: string): Promise<void>;
 }
 
@@ -116,6 +117,50 @@ class IndexedDBStore implements KVStore {
     } catch (error) {
       console.error('IndexedDB set error:', error);
     }
+  }
+
+  async setMany(entries: ReadonlyArray<readonly [key: string, value: unknown]>): Promise<void> {
+    const db = await this.openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      let transaction: IDBTransaction;
+      try {
+        transaction = db.transaction(STORE_NAME, 'readwrite');
+      } catch (error: unknown) {
+        reject(error);
+        return;
+      }
+
+      let settled = false;
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      transaction.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      transaction.onerror = () => fail(
+        transaction.error ?? new Error('IndexedDB batch write failed.'),
+      );
+      transaction.onabort = () => fail(
+        transaction.error ?? new Error('IndexedDB batch write was aborted.'),
+      );
+
+      try {
+        const store = transaction.objectStore(STORE_NAME);
+        for (const [key, value] of entries) store.put(value, key);
+      } catch (error: unknown) {
+        try {
+          transaction.abort();
+        } catch {
+          // The transaction may already have been aborted by IndexedDB.
+        }
+        fail(error);
+      }
+    });
   }
 
   async remove(key: string): Promise<void> {

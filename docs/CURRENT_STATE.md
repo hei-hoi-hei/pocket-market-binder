@@ -102,7 +102,7 @@ Manual export/import is independent of reference caching. Backups primarily pres
 - **Artwork:** A provider-list resolver normalizes candidates and provenance, isolates provider failures, and selects deterministically. Exact-printing status requires evidence; candidates without exact status are not selected. Eligible usage is selectable; unresolved usage is selectable only with explicit provider compatibility; ineligible usage is always rejected. TCGdex alone is configured for unresolved-usage compatibility to preserve existing display, without a rights determination; secondary integration and artwork-specific caching are absent.
 - **Shared-reference backend/cache:** Optional future architecture extension, not implemented or required for V1.
 - **Synchronization:** Contracts, outbox, push/provider scaffolding, and migration components exist. Pulled changes, cursor persistence, conflict wiring, account lifecycle, and truthful user-facing sync state are incomplete.
-- **Backup/restore:** Manual collection export/import exists. Versioned validation/migrations and robust restore remain incomplete; automatic/remote backup is optional future work and is separate from reference caches and collection sync.
+- **Backup/restore:** Manual collection export/import validates version 1.0.0 payloads and writes Binder, Wishlist, and Cart in one atomic local transaction. Backup migration support remains incomplete; automatic/remote backup is optional future work and is separate from reference caches and collection sync.
 - **Mobile UI:** The application is responsive/mobile-capable, but some components become squeezed or compressed at narrow widths. This is targeted UI hardening, not a reason for visual redesign.
 - **Capacitor:** Android platform project and camera acquisition foundation exist (Capacitor/Android 8.5.2, Camera 8.2.4, App 8.1.1). `appRestoredResult` recovers camera/gallery results after process recreation into transient memory. No APK build/device validation or iOS project exists. The Android photo-picker/camera flows add no camera or broad storage permission; photos are not saved by the plugin.
 
@@ -143,8 +143,8 @@ The production screen configures a local perceptual-hash matcher against user-co
 - Multiple live catalog providers and catalog resolver.
 - BYO-credential configuration for legitimately user-owned private providers.
 - OCR/ML preprocessing and recognition for unseen cards, production catalog-resolver selection, and scanner Wishlist/Cart actions. The local-reference matcher provides advisory matches against saved references; only an explicitly confirmed local-reference TCGdex ID reaches the existing Binder action. Provider-neutral recognition and catalog-identity boundaries plus Candidate Review remain in place.
-- TCGdex pricing schema reconciliation, usable free-provider coverage where available, secondary-provider behavior, observation normalization, source/market attribution, timestamps, currency handling, refresh/source controls, and graceful provider failure.
-- Stronger import/export validation, atomic restore, migration hardening, and portability improvements.
+- Broader live pricing-source coverage where a suitable free source is identified. The TCGdex price-guide mapping and comparable-observation handling are implemented; secondary provider integration remains gated on a separate source/terms decision.
+- Versioned backup migration support and further data-portability hardening.
 - Narrow-width audit and targeted responsive fixes without redesign.
 - Robust provider capability/health reporting.
 
@@ -194,7 +194,7 @@ Free providers remain the default. Users may optionally configure services they 
 ```text
 Pricing architecture: PARTIAL / substantially present
 Live provider coverage: PARTIAL
-TCGdex adapter: REQUIRES SCHEMA RECONCILIATION
+TCGdex price-guide mapping: IMPLEMENTED / FIXTURE-VERIFIED
 ```
 
 Pricing observations remain source-, marketplace-, currency-, variant-, and timestamp-aware. Pricing must not be added to canonical `Card` identity.
@@ -244,7 +244,7 @@ Future coding agents must preserve:
 
 1. Preserve the V1 local-first boundary and keep Binder/Wishlist/Cart authoritative on-device; treat shared backend/cache and remote backup as optional future work.
 2. Reconcile provider/source architecture before adding providers or selecting backend/database vendors.
-3. Repair and test the TCGdex pricing adapter without changing `Card`.
+3. Preserve the fixture-tested TCGdex price-guide mapping; revisit it only for a concrete upstream schema change. Broader source coverage remains limited and requires a separate provider decision.
 4. Select and integrate a local recognition provider only after representative OCR/preprocessing evidence supports that choice.
 5. Select a production catalog identity provider only after recognition can produce useful evidence; keep the implemented identity boundary separate from Candidate Review and collection actions.
 6. Consider shared reference caching or remote backup only as separately scoped future work; do not conflate either with multi-device collection synchronization.
