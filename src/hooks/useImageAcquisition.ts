@@ -87,12 +87,19 @@ export function useImageAcquisition(): ImageAcquisitionState & {
       return;
     }
 
-    const previewUrl = replacePreviewUrl(previewUrlRef.current, result.blob);
-    previewUrlRef.current = previewUrl;
-    setState({
-      image: { blob: result.blob, fileName: result.fileName.trim() || 'Captured image', previewUrl },
-      error: null,
-    });
+    try {
+      const previewUrl = replacePreviewUrl(previewUrlRef.current, result.blob);
+      previewUrlRef.current = previewUrl;
+      setState({
+        image: { blob: result.blob, fileName: result.fileName.trim() || 'Captured image', previewUrl },
+        error: null,
+      });
+    } catch {
+      setState((current) => ({
+        ...current,
+        error: 'A preview could not be created for this image. Please choose another picture.',
+      }));
+    }
   }, []);
 
   const selectFile = useCallback((file: File | null) => {

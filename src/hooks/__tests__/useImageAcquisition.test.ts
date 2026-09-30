@@ -128,4 +128,45 @@ describe('image acquisition', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('keeps the current preview and reports an error when a replacement URL cannot be created', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const revokeUrl = vi.fn();
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn()
+        .mockReturnValueOnce('blob:current')
+        .mockImplementationOnce(() => { throw new Error('Object URLs are unavailable.'); }),
+      revokeObjectURL: revokeUrl,
+    });
+
+    let acquisition!: ReturnType<typeof useImageAcquisition>;
+    function HookProbe() {
+      acquisition = useImageAcquisition();
+      return null;
+    }
+
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () => root.render(createElement(HookProbe)));
+      const current = new Blob(['current'], { type: 'image/jpeg' });
+      await act(async () => acquisition.acceptAcquisition(
+        createImageAcquisitionResult(current, 'current.jpg'),
+      ));
+      await act(async () => acquisition.acceptAcquisition(
+        createImageAcquisitionResult(new Blob(['replacement'], { type: 'image/png' }), 'replacement.png'),
+      ));
+
+      expect(acquisition.image).toMatchObject({ blob: current, previewUrl: 'blob:current' });
+      expect(acquisition.error).toBe(
+        'A preview could not be created for this image. Please choose another picture.',
+      );
+      expect(revokeUrl).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
 });

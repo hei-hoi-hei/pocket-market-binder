@@ -59,12 +59,12 @@ async function toAcquisitionResult(media: MediaResult): Promise<ImageAcquisition
     return { status: 'error', message: 'The selected media is not a photo.' };
   }
 
-  const imageUrl = media.webPath ?? (media.uri ? Capacitor.convertFileSrc(media.uri) : undefined);
-  if (!imageUrl) {
-    return { status: 'error', message: 'The camera did not provide a readable photo.' };
-  }
-
   try {
+    const imageUrl = media.webPath ?? (media.uri ? Capacitor.convertFileSrc(media.uri) : undefined);
+    if (!imageUrl) {
+      return { status: 'error', message: 'The camera did not provide a readable photo.' };
+    }
+
     const response = await fetch(imageUrl);
     if (!response.ok) {
       return { status: 'error', message: 'The captured photo could not be read.' };
@@ -116,12 +116,17 @@ export function registerNativeCameraRestoration(): Promise<void> {
     return Promise.resolve();
   }
   if (!restoredListenerRegistration) {
-    restoredListenerRegistration = App.addListener('appRestoredResult', (event) => {
-      void handleRestoredCameraResult(event);
-    })
+    restoredListenerRegistration = Promise.resolve()
+      .then(() => App.addListener('appRestoredResult', (event) => {
+        void handleRestoredCameraResult(event);
+      }))
       .then(() => undefined)
-      .catch(() => {
+      .catch((error: unknown) => {
         restoredListenerRegistration = null;
+        console.error(
+          'Unable to register native camera restoration. Use the browser file picker if camera results are not restored.',
+          error,
+        );
       });
   }
   return restoredListenerRegistration;

@@ -90,6 +90,13 @@ export function ScannerScreen(props: ScannerScreenProps) {
     clearImage();
   };
 
+  const handleImagePreviewError = () => {
+    recognitionController.current?.abort();
+    setLocalResult(null);
+    setMatching(false);
+    handlePreviewError();
+  };
+
   const handleNativeAcquisition = async (
     acquire: () => Promise<ImageAcquisitionResult>,
   ) => {
@@ -215,7 +222,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
               src={image.previewUrl}
               alt="Selected card preview"
               className="w-full h-full object-contain"
-              onError={handlePreviewError}
+              onError={handleImagePreviewError}
             />
           </div>
           <p className="text-xs text-leather-500 mt-3 truncate" title={image.fileName}>

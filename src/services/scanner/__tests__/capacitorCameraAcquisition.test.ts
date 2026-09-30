@@ -88,6 +88,21 @@ describe('Capacitor camera acquisition', () => {
     expect(isNativeCameraAvailable()).toBe(false);
   });
 
+  it('returns a clear unavailable result when native camera support is missing', async () => {
+    cameraMocks.isNativePlatform.mockReturnValue(false);
+
+    await expect(takeNativePhoto()).resolves.toEqual({
+      status: 'error',
+      message: 'Native camera support is unavailable on this device.',
+    });
+    await expect(chooseNativePhotoFromGallery()).resolves.toEqual({
+      status: 'error',
+      message: 'Native photo selection is unavailable on this device.',
+    });
+    expect(cameraMocks.takePhoto).not.toHaveBeenCalled();
+    expect(cameraMocks.chooseFromGallery).not.toHaveBeenCalled();
+  });
+
   it('converts a native camera webPath to the common Blob acquisition result', async () => {
     const image = new Blob(['captured pixels'], { type: 'image/jpeg' });
     const fetchMock = vi.fn(async () => ({
@@ -201,5 +216,59 @@ describe('Capacitor camera acquisition', () => {
     }]));
     expect(consumeRestoredCameraAcquisition()).toEqual(received[0]);
     unsubscribe();
+  });
+
+  it('returns a user-visible error for restored photos whose native URI cannot be converted', async () => {
+    vi.resetModules();
+    const {
+      consumeRestoredCameraAcquisition: consumeFreshRestoredAcquisition,
+      registerNativeCameraRestoration: registerFreshCameraRestoration,
+      subscribeToRestoredCameraAcquisition: subscribeFreshToRestoredAcquisition,
+    } = await import('../capacitorCameraAcquisition');
+    cameraMocks.convertFileSrc.mockImplementation(() => {
+      throw new Error('Invalid native URI.');
+    });
+    let onRestored!: (event: RestoredListenerEvent) => void;
+    appMocks.addListener.mockImplementation(async (_eventName, listener) => {
+      onRestored = listener;
+      return { remove: async () => undefined };
+    });
+    const received: unknown[] = [];
+    const unsubscribe = subscribeFreshToRestoredAcquisition((result) => received.push(result));
+    await registerFreshCameraRestoration();
+
+    onRestored({
+      pluginId: 'Camera',
+      methodName: 'takePhoto',
+      success: true,
+      data: mediaResult({ webPath: undefined }),
+    });
+
+    await vi.waitFor(() => expect(received).toEqual([{
+      status: 'error',
+      message: 'The captured photo could not be read.',
+    }]));
+    expect(consumeFreshRestoredAcquisition()).toEqual(received[0]);
+    unsubscribe();
+  });
+
+  it('reports and retries failed native restoration-listener registration', async () => {
+    vi.resetModules();
+    const { registerNativeCameraRestoration: registerFreshCameraRestoration } =
+      await import('../capacitorCameraAcquisition');
+    const registrationError = new Error('Registration failed.');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    appMocks.addListener
+      .mockRejectedValueOnce(registrationError)
+      .mockResolvedValueOnce({ remove: async () => undefined });
+
+    await expect(registerFreshCameraRestoration()).resolves.toBeUndefined();
+    expect(consoleError).toHaveBeenCalledWith(
+      'Unable to register native camera restoration. Use the browser file picker if camera results are not restored.',
+      registrationError,
+    );
+
+    await expect(registerFreshCameraRestoration()).resolves.toBeUndefined();
+    expect(appMocks.addListener).toHaveBeenCalledTimes(2);
   });
 });

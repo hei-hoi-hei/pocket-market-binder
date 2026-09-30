@@ -258,6 +258,41 @@ describe('ScannerScreen interactions', () => {
     expect(onCandidateConfirmed).not.toHaveBeenCalled();
   });
 
+  it('aborts an in-flight match and discards its result when the preview fails', async () => {
+    let resolveMatch!: (result: typeof matchResult) => void;
+    scannerMocks.identify.mockImplementation(() => new Promise((resolve) => {
+      resolveMatch = resolve;
+    }));
+    const onCandidateConfirmed = await renderScreen();
+    await provideImage();
+
+    const matchButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Match Local References'));
+    if (!matchButton) throw new Error('Local matching action was not rendered.');
+    await act(async () => {
+      matchButton.click();
+      await Promise.resolve();
+    });
+    const signal = scannerMocks.identify.mock.calls[0][2];
+    expect(signal.aborted).toBe(false);
+
+    const preview = container.querySelector('img[alt="Selected card preview"]');
+    if (!preview) throw new Error('Selected image preview was not rendered.');
+    await act(async () => {
+      preview.dispatchEvent(new Event('error'));
+    });
+    expect(signal.aborted).toBe(true);
+    expect(container.textContent).toContain('Preview failed');
+    expect(container.textContent).not.toContain('Candidate Review');
+
+    await act(async () => {
+      resolveMatch(matchResult);
+      await Promise.resolve();
+    });
+    expect(container.textContent).not.toContain('Candidate Review');
+    expect(onCandidateConfirmed).not.toHaveBeenCalled();
+  });
+
   it('ignores image A recognition after replacing it with image B', async () => {
     let resolveImageA!: (result: typeof matchResult) => void;
     let resolveImageB!: (result: typeof matchResult) => void;
