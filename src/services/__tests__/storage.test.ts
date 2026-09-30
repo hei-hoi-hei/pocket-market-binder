@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let closeLocalDatabase: (() => void) | undefined;
 let storage: (typeof import('../storage'))['storage'];
@@ -51,5 +51,24 @@ describe('IndexedDB atomic batch writes', () => {
       { cardId: 'existing-card', quantity: 1, addedAt: 1 },
     ]);
     await expect(storage.get('uncloneable')).resolves.toBeNull();
+  });
+
+  it('rejects a failed single-key write and leaves the previous value intact', async () => {
+    await storage.set('binder', [{ cardId: 'existing-card', quantity: 1, addedAt: 1 }]);
+
+    await expect(storage.set('binder', () => undefined)).rejects.toThrow();
+
+    await expect(storage.get('binder')).resolves.toEqual([
+      { cardId: 'existing-card', quantity: 1, addedAt: 1 },
+    ]);
+  });
+
+  it('rejects a failed read instead of treating it as an empty collection', async () => {
+    const database = await import('../storage').then(({ openLocalDatabase }) => openLocalDatabase());
+    vi.spyOn(database, 'transaction').mockImplementation(() => {
+      throw new Error('IndexedDB read failed.');
+    });
+
+    await expect(storage.get('binder')).rejects.toThrow('IndexedDB read failed.');
   });
 });

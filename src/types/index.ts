@@ -87,11 +87,11 @@ export interface WishlistEntry {
   addedAt: number;
 }
 
-/** An entry in the shopping cart with an optional seller price. */
+/** An acquisition-planning cart entry with an optional planned unit cost in USD. */
 export interface CartEntry {
   cardId: string;
   quantity: number;
-  /** Optional price the user found from a seller, in USD. */
+  /** Optional locally entered planned unit cost, in USD. */
   sellerPrice?: number | null;
   addedAt: number;
 }

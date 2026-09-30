@@ -35,15 +35,36 @@ export async function setBinder(entries: BinderEntry[]): Promise<void> {
 }
 
 export async function addToBinder(cardId: string, qty = 1): Promise<BinderEntry[]> {
-  const entries = await getBinder();
-  const existing = entries.find((e) => e.cardId === cardId);
-  if (existing) {
-    existing.quantity += qty;
+  if (typeof cardId !== 'string' || cardId.trim().length === 0) {
+    throw new Error('A valid card ID is required to add a Binder entry.');
+  }
+  if (!Number.isSafeInteger(qty) || qty <= 0) {
+    throw new Error('Binder quantity must be a positive whole number.');
+  }
+
+  let entries = await getBinder();
+  const firstIndex = entries.findIndex((entry) => entry.cardId === cardId);
+  const existingEntries = entries.filter((entry) => entry.cardId === cardId);
+  if (firstIndex >= 0) {
+    const existing = entries[firstIndex];
+    const quantity = existingEntries.reduce((total, entry) => total + entry.quantity, qty);
+    if (!Number.isSafeInteger(quantity)) {
+      throw new Error('The resulting Binder quantity must be a safe whole number.');
+    }
+    entries = entries.filter((entry) => entry.cardId !== cardId);
+    entries.splice(firstIndex, 0, { ...existing, quantity });
   } else {
     entries.push({ cardId, quantity: qty, addedAt: Date.now() });
   }
   await setBinder(entries);
-  await recordSyncChange('binder', cardId, { cardId, quantity: existing ? existing.quantity : qty });
+  try {
+    await recordSyncChange('binder', cardId, {
+      cardId,
+      quantity: entries.find((entry) => entry.cardId === cardId)?.quantity ?? qty,
+    });
+  } catch (error: unknown) {
+    console.error('Binder was updated locally, but its sync change could not be recorded.', error);
+  }
   return entries;
 }
 

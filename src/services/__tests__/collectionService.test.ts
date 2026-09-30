@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let localStore: Map<string, unknown>;
 let closeSyncDatabase: (() => void) | undefined;
+let failBinderWrite: boolean;
+let failBinderRead: boolean;
 
 function deleteSyncDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -16,8 +18,14 @@ function deleteSyncDatabase(): Promise<void> {
 async function loadCollectionService() {
   vi.doMock('../storage', () => ({
     storage: {
-      get: async (key: string) => localStore.get(key) ?? null,
-      set: async (key: string, value: unknown) => { localStore.set(key, value); },
+      get: async (key: string) => {
+        if (key === 'binder' && failBinderRead) throw new Error('IndexedDB read failed.');
+        return localStore.get(key) ?? null;
+      },
+      set: async (key: string, value: unknown) => {
+        if (key === 'binder' && failBinderWrite) throw new Error('IndexedDB write failed.');
+        localStore.set(key, value);
+      },
       remove: async (key: string) => { localStore.delete(key); },
     },
   }));
@@ -28,10 +36,12 @@ async function loadCollectionService() {
   return import('../collectionService');
 }
 
-describe('collectionService cart mutations', () => {
+describe('collectionService', () => {
   beforeEach(async () => {
     vi.resetModules();
     localStore = new Map();
+    failBinderWrite = false;
+    failBinderRead = false;
     closeSyncDatabase?.();
     closeSyncDatabase = undefined;
     await deleteSyncDatabase();
@@ -141,5 +151,72 @@ describe('collectionService cart mutations', () => {
       quantity: 2,
       addedAt: 10,
     });
+  });
+
+  it('adds multiple copies to an empty Binder using the exact card ID', async () => {
+    const { addToBinder } = await loadCollectionService();
+    const { closeSyncDatabase: close } = await import('../sync/syncDatabase');
+    closeSyncDatabase = close;
+
+    await expect(addToBinder('provider-card:exact-printing-id', 3)).resolves.toMatchObject([
+      { cardId: 'provider-card:exact-printing-id', quantity: 3 },
+    ]);
+    expect(localStore.get('binder')).toEqual([
+      expect.objectContaining({ cardId: 'provider-card:exact-printing-id', quantity: 3 }),
+    ]);
+  });
+
+  it('increments an existing Binder card and consolidates duplicate logical entries', async () => {
+    localStore.set('binder', [
+      { cardId: 'exact-card-id', quantity: 2, addedAt: 10 },
+      { cardId: 'another-card-id', quantity: 1, addedAt: 11 },
+      { cardId: 'exact-card-id', quantity: 4, addedAt: 12 },
+    ]);
+    const { addToBinder } = await loadCollectionService();
+    const { closeSyncDatabase: close } = await import('../sync/syncDatabase');
+    closeSyncDatabase = close;
+
+    await expect(addToBinder('exact-card-id', 3)).resolves.toEqual([
+      { cardId: 'exact-card-id', quantity: 9, addedAt: 10 },
+      { cardId: 'another-card-id', quantity: 1, addedAt: 11 },
+    ]);
+  });
+
+  it('does not report a Binder addition when local storage rejects the write', async () => {
+    failBinderWrite = true;
+    const { addToBinder } = await loadCollectionService();
+
+    await expect(addToBinder('card-id', 2)).rejects.toThrow('IndexedDB write failed.');
+    expect(localStore.has('binder')).toBe(false);
+  });
+
+  it('does not replace Binder state or report success when the local read fails', async () => {
+    localStore.set('binder', [{ cardId: 'existing-card', quantity: 4, addedAt: 1 }]);
+    failBinderRead = true;
+    const { addToBinder } = await loadCollectionService();
+
+    await expect(addToBinder('new-card', 2)).rejects.toThrow('IndexedDB read failed.');
+    expect(localStore.get('binder')).toEqual([
+      { cardId: 'existing-card', quantity: 4, addedAt: 1 },
+    ]);
+  });
+
+  it('reports a successful local addition when the optional sync outbox fails', async () => {
+    const { addToBinder } = await loadCollectionService();
+    const { outboxManager } = await import('../sync/engine/outboxManager');
+    ({ closeSyncDatabase } = await import('../sync/syncDatabase'));
+    vi.spyOn(outboxManager, 'enqueue').mockRejectedValueOnce(new Error('Outbox unavailable.'));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(addToBinder('locally-canonical-card', 2)).resolves.toMatchObject([
+      { cardId: 'locally-canonical-card', quantity: 2 },
+    ]);
+    expect(localStore.get('binder')).toEqual([
+      expect.objectContaining({ cardId: 'locally-canonical-card', quantity: 2 }),
+    ]);
+    expect(console.error).toHaveBeenCalledWith(
+      'Binder was updated locally, but its sync change could not be recorded.',
+      expect.any(Error),
+    );
   });
 });

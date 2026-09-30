@@ -87,36 +87,96 @@ class IndexedDBStore implements KVStore {
   }
 
   async get<T>(key: string): Promise<T | null> {
-    try {
-      const db = await this.openDatabase();
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.get(key);
+    const db = await this.openDatabase();
+    return new Promise((resolve, reject) => {
+      let transaction: IDBTransaction;
+      try {
+        transaction = db.transaction(STORE_NAME, 'readonly');
+      } catch (error: unknown) {
+        reject(error);
+        return;
+      }
 
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result ?? null);
-      });
-    } catch (error) {
-      console.error('IndexedDB get error:', error);
-      return null;
-    }
+      let result: T | null = null;
+      let settled = false;
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      transaction.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+      transaction.onerror = () => fail(
+        transaction.error ?? new Error(`IndexedDB read failed for "${key}".`),
+      );
+      transaction.onabort = () => fail(
+        transaction.error ?? new Error(`IndexedDB read was aborted for "${key}".`),
+      );
+
+      try {
+        const request = transaction.objectStore(STORE_NAME).get(key);
+        request.onerror = () => fail(
+          request.error ?? new Error(`IndexedDB read request failed for "${key}".`),
+        );
+        request.onsuccess = () => {
+          result = request.result ?? null;
+        };
+      } catch (error: unknown) {
+        try {
+          transaction.abort();
+        } catch {
+          // The transaction may already have been aborted by IndexedDB.
+        }
+        fail(error);
+      }
+    });
   }
 
   async set<T>(key: string, value: T): Promise<void> {
-    try {
-      const db = await this.openDatabase();
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.put(value, key);
+    const db = await this.openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      let transaction: IDBTransaction;
+      try {
+        transaction = db.transaction(STORE_NAME, 'readwrite');
+      } catch (error: unknown) {
+        reject(error);
+        return;
+      }
 
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve();
-      });
-    } catch (error) {
-      console.error('IndexedDB set error:', error);
-    }
+      let settled = false;
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      transaction.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      transaction.onerror = () => fail(
+        transaction.error ?? new Error(`IndexedDB write failed for "${key}".`),
+      );
+      transaction.onabort = () => fail(
+        transaction.error ?? new Error(`IndexedDB write was aborted for "${key}".`),
+      );
+
+      try {
+        transaction.objectStore(STORE_NAME).put(value, key);
+      } catch (error: unknown) {
+        try {
+          transaction.abort();
+        } catch {
+          // The transaction may already have been aborted by IndexedDB.
+        }
+        fail(error);
+      }
+    });
   }
 
   async setMany(entries: ReadonlyArray<readonly [key: string, value: unknown]>): Promise<void> {

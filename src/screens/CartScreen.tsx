@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  ShoppingCart, Trash2, Coins, CheckCircle2, Minus, Plus,
+  ShoppingCart, Trash2, Coins, CheckCircle2, Minus, Plus, BookOpen,
 } from 'lucide-react';
 import type { Card } from '@/types';
 import { useCollection } from '@/context/CollectionContext';
@@ -39,7 +39,7 @@ const CART_SORT_OPTIONS: CollectionSortOption[] = [
 ];
 
 export function CartScreen() {
-  const { cart, updateCartEntry, removeFromCart, clearCart } = useCollection();
+  const { cart, updateCartEntry, removeFromCart, clearCart, addToBinder } = useCollection();
   const { go } = useNav();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +48,12 @@ export function CartScreen() {
   const [editingPrice, setEditingPrice] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState('');
   const [sortMode, setSortMode] = useState<CollectionSortMode>('original');
+  const [binderAction, setBinderAction] = useState<{
+    cardId: string;
+    status: 'pending' | 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const binderActionsInProgress = useRef(new Set<string>());
 
   useEffect(() => {
     let active = true;
@@ -133,6 +139,36 @@ export function CartScreen() {
     setPriceInput('');
   };
 
+  const markPurchased = async (line: CartLine) => {
+    if (binderActionsInProgress.current.has(line.cardId)) return;
+    const copies = line.quantity === 1 ? '1 copy' : `${line.quantity} copies`;
+    if (!window.confirm(`Add ${copies} of ${line.card.name} to your Binder?`)) return;
+
+    binderActionsInProgress.current.add(line.cardId);
+    setBinderAction({
+      cardId: line.cardId,
+      status: 'pending',
+      message: `Adding ${copies} of ${line.card.name} to your Binder…`,
+    });
+    try {
+      await addToBinder(line.cardId, line.quantity);
+      setBinderAction({
+        cardId: line.cardId,
+        status: 'success',
+        message: `Added ${copies} of ${line.card.name} to your Binder. The cart item remains here.`,
+      });
+    } catch (error: unknown) {
+      console.error(`Unable to add ${line.card.name} from the acquisition cart to the Binder.`, error);
+      setBinderAction({
+        cardId: line.cardId,
+        status: 'error',
+        message: `Could not add ${line.card.name} to your Binder. Your cart item is unchanged; please try again.`,
+      });
+    } finally {
+      binderActionsInProgress.current.delete(line.cardId);
+    }
+  };
+
   return (
     <div className="animate-fade-in pb-4">
       <ScreenHeader
@@ -172,12 +208,14 @@ export function CartScreen() {
           {/* Line items */}
           <div className="flex-1 w-full space-y-3">
             <CollectionSortControl value={sortMode} options={CART_SORT_OPTIONS} onChange={setSortMode} />
-            {sortedLines.map(({ cardId, card, quantity, sellerPrice, referencePrice }) => {
+            {sortedLines.map((line, lineIndex) => {
+              const { cardId, card, quantity, sellerPrice, referencePrice } = line;
               const style = getCardTypeStyle(card);
               const lineTotal = sellerPrice !== null ? sellerPrice * quantity : null;
+              const currentBinderAction = binderAction?.cardId === cardId ? binderAction : null;
 
               return (
-                <div key={cardId} className="bg-white rounded-xl p-3 border border-parchment-200 shadow-sm flex gap-3 items-center">
+                <div key={`${cardId}-${lineIndex}`} className="bg-white rounded-xl p-3 border border-parchment-200 shadow-sm flex gap-3 items-center">
                   <div className="w-16 flex-shrink-0 cursor-pointer" onClick={() => go('detail', cardId)}>
                     <CardArtwork card={card} className="aspect-[3/4] rounded-lg" />
                   </div>
@@ -211,6 +249,25 @@ export function CartScreen() {
                           ? `${formatPrice(referencePrice)} per copy`
                           : 'Unavailable'}
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => void markPurchased(line)}
+                      disabled={currentBinderAction?.status === 'pending'}
+                      className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-leather-300 px-3 py-1.5 text-xs font-semibold text-leather-700 hover:bg-parchment-100 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      {currentBinderAction?.status === 'pending' ? 'Adding…' : 'Add to Binder'}
+                    </button>
+                    {currentBinderAction && (
+                      <p
+                        role={currentBinderAction.status === 'error' ? 'alert' : 'status'}
+                        className={`mt-1 text-xs ${
+                          currentBinderAction.status === 'error' ? 'text-fire-600' : 'text-grass-700'
+                        }`}
+                      >
+                        {currentBinderAction.message}
+                      </p>
+                    )}
 
                     {/* Quantity & Price Row */}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">

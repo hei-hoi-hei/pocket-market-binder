@@ -10,6 +10,7 @@ const cartMocks = vi.hoisted(() => ({
   updateCartEntry: vi.fn(),
   removeFromCart: vi.fn(),
   clearCart: vi.fn(),
+  addToBinder: vi.fn(),
   go: vi.fn(),
   getById: vi.fn(),
   getConsolidatedPrice: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('@/context/CollectionContext', () => ({
     updateCartEntry: cartMocks.updateCartEntry,
     removeFromCart: cartMocks.removeFromCart,
     clearCart: cartMocks.clearCart,
+    addToBinder: cartMocks.addToBinder,
   }),
 }));
 
@@ -66,6 +68,8 @@ describe('CartScreen acquisition calculator', () => {
       if (card.id === 'card-c') throw new Error('Market reference unavailable.');
       return { value: card.id === 'card-a' ? 10 : 5 };
     });
+    cartMocks.addToBinder.mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     container = document.createElement('div');
     document.body.append(container);
@@ -76,6 +80,7 @@ describe('CartScreen acquisition calculator', () => {
     await act(async () => root.unmount());
     container.remove();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -97,5 +102,50 @@ describe('CartScreen acquisition calculator', () => {
     expect(cartMocks.getConsolidatedPrice).toHaveBeenCalledWith(expect.objectContaining({ id: 'card-a' }));
     expect(cartMocks.getConsolidatedPrice).toHaveBeenCalledWith(expect.objectContaining({ id: 'card-b' }));
     expect(cartMocks.getConsolidatedPrice).toHaveBeenCalledWith(expect.objectContaining({ id: 'card-c' }));
+  });
+
+  it('requires confirmation and adds the exact cart card and quantity without removing the cart line', async () => {
+    await act(async () => root.render(createElement(CartScreen)));
+    await vi.waitFor(() => expect(container.textContent).toContain('Acquisition Summary'));
+
+    const addButtons = [...container.querySelectorAll('button')]
+      .filter((button) => button.textContent?.includes('Add to Binder'));
+    if (addButtons.length === 0) throw new Error('Add to Binder action was not rendered.');
+
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    await act(async () => addButtons[0].click());
+    expect(cartMocks.addToBinder).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('Added 2 copies of Card card-a');
+
+    await act(async () => {
+      addButtons[0].click();
+      await Promise.resolve();
+    });
+    expect(window.confirm).toHaveBeenLastCalledWith('Add 2 copies of Card card-a to your Binder?');
+    expect(cartMocks.addToBinder).toHaveBeenCalledWith('card-a', 2);
+    expect(container.textContent).toContain('Added 2 copies of Card card-a to your Binder.');
+    expect(container.textContent).toContain('The cart item remains here.');
+    expect(container.textContent).toContain('Card card-a');
+    expect(cartMocks.removeFromCart).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed Binder write without reporting success or clearing the cart', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    cartMocks.addToBinder.mockRejectedValueOnce(new Error('IndexedDB write failed.'));
+    await act(async () => root.render(createElement(CartScreen)));
+    await vi.waitFor(() => expect(container.textContent).toContain('Acquisition Summary'));
+
+    const addButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Add to Binder'));
+    if (!addButton) throw new Error('Add to Binder action was not rendered.');
+    await act(async () => {
+      addButton.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Could not add Card card-a to your Binder.');
+    expect(container.textContent).not.toContain('Added 2 copies of Card card-a');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Your cart item is unchanged');
+    expect(cartMocks.removeFromCart).not.toHaveBeenCalled();
   });
 });

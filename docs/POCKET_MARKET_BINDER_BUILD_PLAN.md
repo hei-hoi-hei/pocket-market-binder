@@ -427,7 +427,7 @@ Implement:
 - planned acquisition total
 - difference from reference
 - acquisition-cost / acquisition-planning workflow
-- Add Purchased Cards to Binder
+- Add Purchased Cards to Binder (implemented as an explicit user-confirmed action; adding the exact cart card and quantity does not remove the planning line).
 
 All calculations must work offline. The cart does not discover sellers,
 marketplace listings, or purchase links.
