@@ -178,7 +178,6 @@ export function CardDetailScreen() {
           </button>
         </div>
 
-        {/* Seller price input */}
         {/* Pricing Widget */}
         <div className="mb-6">
           <PriceConsolidationWidget card={card} />
@@ -186,7 +185,7 @@ export function CardDetailScreen() {
 
         <div className="bg-white rounded-2xl p-5 border border-parchment-200 shadow-sm">
           <label className="text-xs font-bold uppercase tracking-widest text-leather-500 flex items-center gap-2 mb-3">
-            <Coins className="w-4 h-4 text-gold-500" /> Marketplace Tracking
+            <Coins className="w-4 h-4 text-gold-500" /> Acquisition Planning
           </label>
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
@@ -198,7 +197,7 @@ export function CardDetailScreen() {
                 step="0.01"
                 value={sellerPrice}
                 onChange={(e) => setSellerPrice(e.target.value)}
-                placeholder="0.00"
+                placeholder="0.00 USD"
                 className="w-full bg-parchment-100 border-2 border-parchment-300 rounded-xl pl-8 pr-4 py-2.5 text-sm font-bold text-leather-800 placeholder:text-leather-300 focus:border-gold-400 focus:outline-none transition-colors"
               />
             </div>
@@ -207,17 +206,17 @@ export function CardDetailScreen() {
               disabled={!validSeller}
               className="bg-leather-700 text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-leather-600 transition-all active:scale-95 disabled:opacity-30 shadow-md"
             >
-              Save Price
+              Save Planned Cost
             </button>
           </div>
           <p className="text-xs text-leather-400 mt-3 leading-relaxed">
-            Enter a price you found from a seller. Used in the cart to compare against the market reference price.
+            Enter your planned unit cost in USD. It remains local and is compared with the available Market Reference in your acquisition cart.
           </p>
           {cartEntry && (
             <div className="bg-grass-50 border border-grass-100 rounded-lg p-2 mt-3 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-grass-500" />
               <p className="text-xs text-grass-700 font-bold">
-                In cart: {cartEntry.quantity} × {cartEntry.sellerPrice != null ? formatPrice(cartEntry.sellerPrice) : 'no seller price'}
+                In cart: {cartEntry.quantity} × {cartEntry.sellerPrice != null ? formatPrice(cartEntry.sellerPrice) : 'no planned cost'}
               </p>
             </div>
           )}

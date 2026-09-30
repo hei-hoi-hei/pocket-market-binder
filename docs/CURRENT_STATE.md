@@ -86,7 +86,7 @@ Manual export/import is independent of reference caching. Backups primarily pres
 - Manual catalog search and manual binder addition.
 - IndexedDB persistence with isolated user/catalog/pricing key spaces.
 - Legacy `localStorage` migration.
-- Binder quantities, wishlist, and the virtual cart with local planned-cost calculation.
+- Binder quantities, wishlist, and the virtual acquisition cart with local planned-cost and `price-guide` Market Reference totals/comparison.
 - TCGdex-backed Pokémon catalog search/detail mapping and catalog caching.
 - High/low catalog artwork URL selection and UI/procedural fallback behavior where applicable.
 - Collection JSON export, merge import, and overwrite import.

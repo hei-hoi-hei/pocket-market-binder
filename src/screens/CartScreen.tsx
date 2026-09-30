@@ -11,12 +11,14 @@ import { CollectionSortControl, type CollectionSortOption } from '@/components/C
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { formatPrice, getCardTypeStyle } from '@/utils/format';
 import { sortCartLines, type CollectionSortMode } from '@/utils/collectionSorting';
+import { pricingService } from '@/services/pricingService';
 
 interface CartLine {
   cardId: string;
   card: Card;
   quantity: number;
   sellerPrice: number | null;
+  referencePrice: number | null;
   addedAt: number;
 }
 
@@ -41,6 +43,8 @@ export function CartScreen() {
   const { go } = useNav();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const [referenceLoadFailed, setReferenceLoadFailed] = useState(false);
   const [editingPrice, setEditingPrice] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState('');
   const [sortMode, setSortMode] = useState<CollectionSortMode>('original');
@@ -58,6 +62,7 @@ export function CartScreen() {
             card,
             quantity: entry.quantity,
             sellerPrice: entry.sellerPrice ?? null,
+            referencePrice: null,
             addedAt: entry.addedAt,
           });
         }
@@ -65,6 +70,29 @@ export function CartScreen() {
       if (active) {
         setLines(resolved);
         setLoading(false);
+        setReferenceLoading(resolved.length > 0);
+        setReferenceLoadFailed(false);
+      }
+
+      const referenceResults = await Promise.all(resolved.map(async (line) => {
+        try {
+          const price = await pricingService.getConsolidatedPrice(line.card);
+          return { cardId: line.cardId, referencePrice: price.value, failed: false };
+        } catch {
+          return { cardId: line.cardId, referencePrice: null, failed: true };
+        }
+      }));
+      if (active) {
+        const pricesByCardId = new Map(referenceResults.map(({ cardId, referencePrice }) => [
+          cardId,
+          referencePrice,
+        ]));
+        setLines((currentLines) => currentLines.map((line) => ({
+          ...line,
+          referencePrice: pricesByCardId.get(line.cardId) ?? null,
+        })));
+        setReferenceLoadFailed(referenceResults.some(({ failed }) => failed));
+        setReferenceLoading(false);
       }
     })();
     return () => {
@@ -74,6 +102,20 @@ export function CartScreen() {
 
   const sellerTotal = lines.reduce((sum, l) => sum + (l.sellerPrice ?? 0) * l.quantity, 0);
   const pricedLinesCount = lines.filter((l) => l.sellerPrice !== null && l.sellerPrice >= 0).length;
+  const referenceLines = lines.filter((line) => line.referencePrice !== null);
+  const comparableLines = lines.filter((line) => line.referencePrice !== null && line.sellerPrice !== null);
+  const referenceTotal = referenceLines.reduce(
+    (sum, line) => sum + (line.referencePrice ?? 0) * line.quantity,
+    0,
+  );
+  const comparableReferenceTotal = comparableLines.reduce(
+    (sum, line) => sum + (line.referencePrice ?? 0) * line.quantity,
+    0,
+  );
+  const comparablePlannedTotal = comparableLines.reduce(
+    (sum, line) => sum + (line.sellerPrice ?? 0) * line.quantity,
+    0,
+  );
   const sortedLines = sortCartLines(lines, sortMode);
 
   const startEditPrice = (cardId: string, current: number | null) => {
@@ -94,7 +136,7 @@ export function CartScreen() {
   return (
     <div className="animate-fade-in pb-4">
       <ScreenHeader
-        title="Shopping Cart"
+        title="Acquisition Cart"
         icon={<ShoppingCart className="w-7 h-7 text-leather-600" />}
         action={
           lines.length > 0 ? (
@@ -107,7 +149,7 @@ export function CartScreen() {
           ) : undefined
         }
       >
-        <p className="text-sm text-leather-500">Track prospective purchases and seller offers.</p>
+        <p className="text-sm text-leather-500">Plan acquisition costs and compare them with available market references.</p>
       </ScreenHeader>
 
       {loading ? (
@@ -130,7 +172,7 @@ export function CartScreen() {
           {/* Line items */}
           <div className="flex-1 w-full space-y-3">
             <CollectionSortControl value={sortMode} options={CART_SORT_OPTIONS} onChange={setSortMode} />
-            {sortedLines.map(({ cardId, card, quantity, sellerPrice }) => {
+            {sortedLines.map(({ cardId, card, quantity, sellerPrice, referencePrice }) => {
               const style = getCardTypeStyle(card);
               const lineTotal = sellerPrice !== null ? sellerPrice * quantity : null;
 
@@ -157,11 +199,18 @@ export function CartScreen() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-leather-600">
                       <span className="whitespace-nowrap">Qty: <strong className="text-leather-800">{quantity}</strong></span>
                       {sellerPrice !== null ? (
-                        <span className="whitespace-nowrap">Price: <strong className="text-leather-800">{formatPrice(sellerPrice)}</strong></span>
+                        <span className="whitespace-nowrap">Planned unit cost: <strong className="text-leather-800">{formatPrice(sellerPrice)}</strong></span>
                       ) : (
-                        <span className="text-leather-400 italic truncate">No seller price set</span>
+                        <span className="text-leather-400 italic truncate">No planned unit cost</span>
                       )}
                     </div>
+                    <p className="mt-1 text-xs text-leather-500">
+                      Market Reference: {referenceLoading
+                        ? 'Loading…'
+                        : referencePrice !== null
+                          ? `${formatPrice(referencePrice)} per copy`
+                          : 'Unavailable'}
+                    </p>
 
                     {/* Quantity & Price Row */}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
@@ -229,19 +278,49 @@ export function CartScreen() {
 
           {/* Summary */}
           <div className="w-full lg:w-80 bg-leather-800 text-white rounded-xl p-5 shadow-card space-y-4 lg:sticky lg:top-24 flex-shrink-0">
-            <h3 className="font-display text-lg text-gold-400">Cart Summary</h3>
+            <h3 className="font-display text-lg text-gold-400">Acquisition Summary</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-parchment-200">Total Items</span>
                 <span className="font-bold tabular-nums">{lines.reduce((acc, l) => acc + l.quantity, 0)}</span>
               </div>
-              <div className="flex justify-between items-center border-t border-leather-600 pt-2 mt-2">
-                <span className="text-parchment-200">Seller Total ({pricedLinesCount}/{lines.length} priced)</span>
+              <div className="flex justify-between">
+                <span className="text-parchment-200">Market Reference ({referenceLines.length}/{lines.length})</span>
+                <span className="font-bold tabular-nums">{formatPrice(referenceTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-parchment-200">Planned acquisition ({pricedLinesCount}/{lines.length})</span>
                 <span className="font-display text-xl text-gold-400 tabular-nums">{formatPrice(sellerTotal)}</span>
               </div>
+              <div className="flex justify-between items-center border-t border-leather-600 pt-2 mt-2">
+                <span className="text-parchment-200">Difference ({comparableLines.length} comparable)</span>
+                <span className="font-display text-xl text-gold-400 tabular-nums">
+                  {comparableLines.length > 0
+                    ? formatPrice(comparablePlannedTotal - comparableReferenceTotal)
+                    : '—'}
+                </span>
+              </div>
+              {referenceLoading && (
+                <p role="status" className="text-xs text-parchment-300">Loading local Market Reference data…</p>
+              )}
+              {!referenceLoading && referenceLines.length < lines.length && (
+                <p className="text-xs text-parchment-300">
+                  Reference total includes only items with a fresh comparable price.
+                </p>
+              )}
+              {!referenceLoading && comparableLines.length < Math.max(referenceLines.length, pricedLinesCount) && (
+                <p className="text-xs text-parchment-300">
+                  Difference uses only items with both a planned cost and a fresh Market Reference.
+                </p>
+              )}
+              {referenceLoadFailed && (
+                <p role="alert" className="text-xs text-fire-200">
+                  Some Market References could not be loaded. Your local acquisition plan is unchanged.
+                </p>
+              )}
               <p className="text-xs text-parchment-300 pt-1 flex items-center gap-1.5 leading-relaxed">
                 <CheckCircle2 className="w-4 h-4 text-grass-400 flex-shrink-0" />
-                Track offers from local or online card shops.
+                Planned costs are stored locally; unavailable market data does not block the calculator.
               </p>
             </div>
           </div>
